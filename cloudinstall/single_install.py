@@ -284,7 +284,7 @@ class SingleInstall:
         try:
             result_json = Container.run(self.container_name, cmd)
 
-        except utils.NoContainerIPException as e:
+        except Container.NoContainerIPException as e:
             log.debug("Container has no IPs according to lxc-info. "
                       "Will retry.")
             return False
