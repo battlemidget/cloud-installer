@@ -64,7 +64,7 @@ class Container:
         """
 
         if use_ssh:
-            ip = cls.container_ip(name)
+            ip = cls.ip(name)
             quoted_cmd = shlex.quote(cmd)
             wrapped_cmd = ("sudo -H -u {3} TERM=xterm256-color ssh -t -q "
                            "-l ubuntu -o \"StrictHostKeyChecking=no\" "
@@ -146,7 +146,7 @@ class Container:
     def run_status(cls, name, cmd, config):
         """ Runs cloud-status in container
         """
-        ip = cls.container_ip(name)
+        ip = cls.ip(name)
         cmd = ("sudo -H -u {2} TERM=xterm256-color ssh -t -q "
                "-l ubuntu -o \"StrictHostKeyChecking=no\" "
                "-o \"UserKnownHostsFile=/dev/null\" "
@@ -168,7 +168,7 @@ class Container:
         :param str filepath: file to copy to container
         :param str dst: destination of remote path
         """
-        ip = cls.container_ip(name)
+        ip = cls.ip(name)
         cmd = ("scp -r -q "
                "-o \"StrictHostKeyChecking=no\" "
                "-o \"UserKnownHostsFile=/dev/null\" "

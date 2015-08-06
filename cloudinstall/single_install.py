@@ -23,7 +23,9 @@ import shutil
 from subprocess import call, check_call, check_output, STDOUT
 
 from cloudinstall import utils, netutils
-from cloudinstall.api.container import Container
+from cloudinstall.api.container import (Container,
+                                        NoContainerIPException,
+                                        ContainerRunException)
 
 
 log = logging.getLogger('cloudinstall.single_install')
@@ -284,12 +286,12 @@ class SingleInstall:
         try:
             result_json = Container.run(self.container_name, cmd)
 
-        except Container.NoContainerIPException as e:
+        except NoContainerIPException as e:
             log.debug("Container has no IPs according to lxc-info. "
                       "Will retry.")
             return False
 
-        except Container.ContainerRunException as e:
+        except ContainerRunException as e:
             _, returncode = e.args
             if returncode == 255:
                 if tries < maxlenient:
