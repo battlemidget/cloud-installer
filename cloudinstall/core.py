@@ -32,6 +32,7 @@ from cloudinstall.charms import CharmQueue
 from cloudinstall.log import PrettyLog
 from cloudinstall.placement.controller import (PlacementController,
                                                AssignmentType)
+from cloudinstall.api.container import Container
 
 from macumba import JujuClient
 from macumba import Jobs as JujuJobs
@@ -227,7 +228,7 @@ class Controller:
             count = count + 1
             self.ui.status_info_message(
                 "Waiting for MAAS (tries {0})".format(count))
-            uri = path.join('http://', utils.container_ip('maas'), 'MAAS')
+            uri = path.join('http://', Container.ip('maas'), 'MAAS')
             log.debug("Checking MAAS availability ({0})".format(uri))
             try:
                 res = requests.get(uri)
