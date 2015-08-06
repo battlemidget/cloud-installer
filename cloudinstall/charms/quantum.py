@@ -70,6 +70,7 @@ class CharmQuantum(CharmBase):
                 self.config.getopt('install_type')),
             juju_home=self.config.juju_home(use_expansion=True))
         self.ui.status_info_message("Done.")
+        self.config.setopt("deployed", True)
         return False
 
 

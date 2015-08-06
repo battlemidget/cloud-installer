@@ -300,7 +300,8 @@ class Controller:
 
         self.deploy_using_placement()
         self.wait_for_deployed_services_ready()
-        self.enqueue_deployed_charms()
+        if not self.config.getopt("deployed"):
+            self.enqueue_deployed_charms()
 
     def set_unique_hostnames(self):
         """checks for and ensures unique hostnames, so e.g. ceph can assume
