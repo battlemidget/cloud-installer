@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from .single import SingleInstall  # NOQA
+from .single import SingleInstallController  # NOQA
 from .landscape import LandscapeInstall  # NOQA
 from .multi import (MultiInstall, MultiInstallExistingMaas, LandscapeInstallFinal)  # NOQA
 from .path import InstallPathController  # NOQA

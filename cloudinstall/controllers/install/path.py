@@ -14,13 +14,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import urwid
 
 from cloudinstall.controller import ControllerPolicy
 from cloudinstall.models import InstallPathModel
 from cloudinstall.ui.views.install import InstallPathView
 
 log = logging.getLogger("cloudinstall.c.i.installpath")
+
+
+class InstallPathControllerException(Exception):
+    pass
 
 
 class InstallPathController(ControllerPolicy):
@@ -79,18 +82,11 @@ class InstallPathController(ControllerPolicy):
     #                       'IP address and API key to proceed.')
     #         return self.ui.select_maas_type(self._save_maas_creds)
 
-    def install_single(self):
-        raise SystemExit("Single Install selected")
-
-    def install_multi(self):
-        raise SystemExit("Multi Install selected")
-
-    def install_landscape(self):
-        raise SystemExit("Landscape Install selected")
-
     def install(self):
         """ load install path view """
         title = "Install Path Selection"
-        self.ui.set_header(title)
+        excerpt = ("Highlight the type of installation you wish to make and "
+                   "press ENTER to proceed.")
+        self.ui.set_header(title, excerpt)
         self.ui.set_body(InstallPathView(self.model,
                                          self.signal))

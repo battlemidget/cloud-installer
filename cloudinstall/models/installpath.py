@@ -31,20 +31,47 @@ class InstallPathModel(ModelPolicy):
          'install')
     ]
 
+    install_descriptions = {
+        'Single': [
+            "Fully containerized OpenStack installation "
+            "on a single machine.",
+            "",
+            "Use this option if you want a non-intrusive way to test out an ",
+            "an OpenStack install where cleanup is as simple as removing the ",
+            "parent LXC container."
+        ],
+        'Multi': [
+            "OpenStack installation utilizing MAAS.",
+            "",
+            "Use this option if you have an existing MAAS setup and at least",
+            "3 registered machines."
+        ],
+        'Landscape OpenStack Autopilot': [
+            "The Canonical Distribution - "
+            "Enterprise OpenStack Install and Management.",
+            "",
+            "Use this option if you want an enterprise-ready cloud with all ",
+            "the tools needed to monitor and manage your cloud.",
+            "",
+            "This option requires you at least have 7 available machines ",
+            "registered in MAAS containing at least 2 disks and 2 network ",
+            "adapters each."
+        ]
+    }
+
     install_types = [
-        ("Single - "
-         "Fully containerized OpenStack installation "
-         "on a single machine.",
-         "installpath:single",
-         "install_single"),
-        ("Multi - OpenStack installation utilizing MAAS.",
-         "installpath:multi",
-         "install_multi"),
-        ("Landscape OpenStack Autopilot - "
-         "The Canonical Distribution "
-         "- Enterprise Openstack Install and Management.",
-         "installpath:landscape",
-         "install_landscape")
+        ("Single",
+         "install:single",
+         "single"),
+        ("Start Single Install",
+         "install:single:start",
+         "single_start"),
+        ("Multi",
+         "install:multi",
+         "multi"),
+        ("Landscape OpenStack Autopilot",
+         "install:landscape",
+         "landscape")
     ]
 
     def get_signals(self):
@@ -57,3 +84,7 @@ class InstallPathModel(ModelPolicy):
         for x, y, z in self.get_menu():
             if x == selection:
                 return y
+
+    def get_description(self, name):
+        rows = len(self.install_descriptions[name])
+        return (rows, "\n".join(self.install_descriptions[name]))

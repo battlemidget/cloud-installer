@@ -21,9 +21,9 @@ def apply_default_colors(cls):
                  'light_orange': '#f60',
                  'white': 'white',
                  'black': 'black',
-                 'warm_grey': '#999',
+                 'light_grey': '#999',
                  'cool_grey': '#666',
-                 'text_grey': '#333'}
+                 'warm_grey': '#333'}
     for k, v in color_map.items():
         setattr(cls, k, v)
     return cls
@@ -36,10 +36,12 @@ class Palette:
 STYLES = [
     ('frame_header', '', '', '',
      Palette.white, Palette.orange),
+    ('frame_excerpt', '', '', '',
+     Palette.white, Palette.warm_grey),
     ('frame_footer', '', '', '',
      Palette.white, Palette.orange),
     ('body', '', '', '',
-     Palette.white, Palette.black),
+     Palette.white, ''),
     ('button_primary', '', '',
      '', Palette.white, Palette.cool_grey),
     ('button_primary focus', '', '', '',
@@ -49,5 +51,5 @@ STYLES = [
     ('button_secondary focus', '', '', '',
      Palette.white, Palette.light_orange),
     ('info_minor', '', '', '',
-     Palette.warm_grey, Palette.black)
+     Palette.warm_grey, '')
 ]

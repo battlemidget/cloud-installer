@@ -19,19 +19,20 @@ Diagram:
 
 Ubuntu OpenStack Installer - Choose Install Type
 
-                ( ) Single              |  Single Install
-                ( ) Multi               |  Multi Install
-                ( ) Landscape Autopilot |  Autopilot install
+                [Single              ]  Single Install desc
 
-                               [ Confirm ]
-                               [ Cancel  ]
+                [Multi               ]  Multi Install desc
+
+                [Landscape Autopilot ]  Autopilot install desc
+
+                               [ Quit  ]
 """
 
 from cloudinstall.view import ViewPolicy
 from cloudinstall.ui.buttons import cancel_btn, confirm_btn
 from cloudinstall.ui.utils import Color, Padding
 from cloudinstall.ui.lists import SimpleList
-from urwid import BoxAdapter, ListBox, Pile
+from urwid import BoxAdapter, ListBox, Pile, Columns, Text, Divider
 import logging
 
 
@@ -56,20 +57,31 @@ class InstallPathView(ViewPolicy):
     def _build_buttons(self):
         self.buttons = [
             Color.button_secondary(
-                cancel_btn(label="Quit", on_press=self.cancel),
+                cancel_btn(label="Quit",
+                           on_press=self.cancel),
                 focus_map="button_secondary focus")
         ]
         return Pile(self.buttons)
 
     def _build_model_inputs(self):
         selection = []
+        rows = 0
         for label, sig, _ in self.model.get_menu():
-            selection.append(Color.button_primary(
-                confirm_btn(label=label, on_press=self.confirm),
-                focus_map="button_primary focus"))
-
+            desc_rows, desc = self.model.get_description(label)
+            rows = rows + desc_rows
+            col = Columns(
+                [
+                    ("weight", 0.4, Color.button_primary(
+                        confirm_btn(label=label,
+                                    on_press=self.confirm),
+                        focus_map="button_primary focus")),
+                    Text(desc)
+                ], dividechars=1)
+            selection.append(col)
+            selection.append(Divider('-', 1, 1))
+        selection = selection[:-1]
         return BoxAdapter(SimpleList(selection),
-                          height=len(selection))
+                          height=len(selection) + 2 + rows)
 
     def confirm(self, result):
         self.signal.emit_signal(self.model.get_signal_by_name(result.label))

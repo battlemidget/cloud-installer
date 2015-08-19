@@ -25,9 +25,15 @@ class InstallHeader(WidgetWrap):
     :returns: Header()
     """
 
-    def __init__(self, title="Ubuntu OpenStack Installer"):
+    prefix_title = "Ubuntu OpenStack Installer - "
+
+    def __init__(self, title="Welcome", excerpt="Ready to install"):
         widgets = [
-            Color.frame_header(Text(title)),
+            Columns([
+                ("pack", Color.frame_header(Text(self.prefix_title))),
+                Color.frame_header(Text(title))
+            ]),
+            Color.frame_excerpt(Text(excerpt, align="center")),
             Padding.line_break("")
         ]
         super().__init__(Pile(widgets))
@@ -39,10 +45,14 @@ class StatusHeader(WidgetWrap):
     :param str title: Title of Header
     :returns: Header()
     """
+    prefix_title = "Ubuntu OpenStack - "
 
-    def __init__(self, title="Ubuntu OpenStack Installer"):
+    def __init__(self, title="Welcome"):
         widgets = [
-            Color.frame_header(Text(title)),
+            Columns([
+                ("pack", Color.frame_header(Text(self.prefix_title))),
+                Color.frame_header(Text(title))
+            ]),
             Padding.line_break("")
         ]
         super().__init__(Pile(widgets))
