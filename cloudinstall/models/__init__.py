@@ -14,3 +14,4 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from .installpath import InstallPathModel  # NOQA
+from .singleinstall import SingleInstallModel  # NOQA
