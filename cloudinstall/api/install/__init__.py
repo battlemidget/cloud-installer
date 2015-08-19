@@ -1,4 +1,4 @@
-# Copyright 2015 Canonical, Ltd.
+# Copyright 2014, 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -13,15 +13,4 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from urwid import Button, Text
-from functools import partial
-
-
-class PlainButton(Button):
-    button_left = Text("[")
-    button_right = Text("]")
-
-confirm_btn = partial(PlainButton, label="Confirm", on_press=None)
-cancel_btn = partial(PlainButton, label="Cancel", on_press=None)
-done_btn = partial(PlainButton, label="Done", on_press=None)
-reset_btn = partial(PlainButton, label="Reset", on_press=None)
+from .single import SingleInstallAPI  # NOQA

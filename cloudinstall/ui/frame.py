@@ -16,32 +16,64 @@
 """ Base Frame Widget """
 
 from urwid import Frame, WidgetWrap
-from .anchors import Header, Footer, Body
+from .anchors import (InstallHeader,
+                      InstallFooter,
+                      StatusHeader,
+                      StatusFooter,
+                      Body)
 import logging
 
 
 log = logging.getLogger('subiquity.ui.frame')
 
+# COMMON
+key_conversion_map = {'tab': 'down', 'shift tab': 'up'}
 
-class OpenstackUI(WidgetWrap):
-    key_conversion_map = {'tab': 'down', 'shift tab': 'up'}
 
+class OpenstackInstallUI(WidgetWrap):
+    """ Base UI for the install portion of the application
+    """
     def __init__(self, header=None, body=None, footer=None):
-        self.header = header if header else Header()
+        self.header = header if header else InstallHeader()
         self.body = body if body else Body()
-        self.footer = footer if footer else Footer()
+        self.footer = footer if footer else InstallFooter()
         self.frame = Frame(self.body, header=self.header, footer=self.footer)
         super().__init__(self.frame)
 
     def keypress(self, size, key):
-        key = self.key_conversion_map.get(key, key)
+        key = key_conversion_map.get(key, key)
         return super().keypress(size, key)
 
     def set_header(self, title=None, excerpt=None):
-        self.frame.header = Header(title, excerpt)
+        self.frame.header = InstallHeader(title, excerpt)
 
     def set_footer(self, message):
-        self.frame.footer = Footer(message)
+        self.frame.footer = InstallFooter(message)
+
+    def set_body(self, widget):
+        self.frame.body = widget
+
+
+class OpenstackStatusUI(WidgetWrap):
+    """ Base UI for the status portion of the application
+    """
+
+    def __init__(self, header=None, body=None, footer=None):
+        self.header = header if header else StatusHeader()
+        self.body = body if body else Body()
+        self.footer = footer if footer else StatusFooter()
+        self.frame = Frame(self.body, header=self.header, footer=self.footer)
+        super().__init__(self.frame)
+
+    def keypress(self, size, key):
+        key = key_conversion_map.get(key, key)
+        return super().keypress(size, key)
+
+    def set_header(self, title=None, excerpt=None):
+        self.frame.header = StatusHeader(title, excerpt)
+
+    def set_footer(self, message):
+        self.frame.footer = StatusFooter(message)
 
     def set_body(self, widget):
         self.frame.body = widget

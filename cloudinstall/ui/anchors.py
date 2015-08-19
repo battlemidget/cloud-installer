@@ -18,7 +18,7 @@ from .lists import SimpleList
 from .utils import Color, Padding
 
 
-class Header(WidgetWrap):
+class InstallHeader(WidgetWrap):
     """ Header Widget
     This widget uses the style key `frame_header`
     :param str title: Title of Header
@@ -33,7 +33,35 @@ class Header(WidgetWrap):
         super().__init__(Pile(widgets))
 
 
-class Footer(WidgetWrap):
+class StatusHeader(WidgetWrap):
+    """ Header Widget
+    This widget uses the style key `frame_header`
+    :param str title: Title of Header
+    :returns: Header()
+    """
+
+    def __init__(self, title="Ubuntu OpenStack Installer"):
+        widgets = [
+            Color.frame_header(Text(title)),
+            Padding.line_break("")
+        ]
+        super().__init__(Pile(widgets))
+
+
+class InstallFooter(WidgetWrap):
+    """ Footer widget
+
+    Style key: `frame_footer`
+
+    """
+
+    def __init__(self, message=""):
+        message_widget = Padding.center_79(Color.body(Text(message)))
+        status = Pile([Padding.line_break(""), message_widget])
+        super().__init__(status)
+
+
+class StatusFooter(WidgetWrap):
 
     """Displays text."""
 
@@ -107,6 +135,15 @@ class Footer(WidgetWrap):
 
 
 class InstallMenu(WidgetWrap):
+
+    def __init__(self):
+        menu = [
+            Color.body(Text("(Q)uit"))
+        ]
+        super().__init__(Columns(menu))
+
+
+class StatusMenu(WidgetWrap):
 
     def __init__(self):
         menu = [

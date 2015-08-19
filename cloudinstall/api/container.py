@@ -16,7 +16,8 @@
 
 import subprocess
 from subprocess import (check_output,
-                        CalledProcessError)
+                        CalledProcessError,
+                        STDOUT)
 import logging
 import shlex
 import pty
@@ -285,3 +286,9 @@ class Container:
         out = utils.get_command_output(
             'sudo lxc-wait -n {0} -s RUNNING'.format(name))
         return out['status']
+
+    @classmethod
+    def status(cls, name):
+        return check_output("lxc-info -n {} -s "
+                            "|| true".format(name),
+                            shell=True, stderr=STDOUT).decode('utf-8')

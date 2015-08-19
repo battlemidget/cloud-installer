@@ -25,7 +25,7 @@ import logging
 from functools import partial
 from cloudinstall.log import setup_logger
 import cloudinstall.utils as utils
-from cloudinstall.gui import PegasusGUI, InstallHeader
+from cloudinstall.ui.frame import OpenstackInstallUI
 from cloudinstall.consoleui import ConsoleUI
 from cloudinstall.controllers.installbase import InstallController
 from cloudinstall.config import Config
@@ -149,6 +149,10 @@ if __name__ == '__main__':
         print("  export LANGUAGE=en_US.UTF-8")
         sys.exit(1)
 
+    if opts.upstream_deb and not os.path.isfile(opts.upstream_deb):
+        raise Exception("Upstream deb '{}' "
+                        "not found.".format(opts.upstream_deb))
+
     if opts.get_config:
         conf_bin = "/usr/bin/openstack-config"
         os.execl(conf_bin, conf_bin, opts.get_config)
@@ -215,7 +219,7 @@ if __name__ == '__main__':
     if cfg.getopt('headless'):
         ui = ConsoleUI()
     else:
-        ui = PegasusGUI(header=InstallHeader())
+        ui = OpenstackInstallUI()
 
     # Set proxy
     if cfg.getopt('http_proxy'):

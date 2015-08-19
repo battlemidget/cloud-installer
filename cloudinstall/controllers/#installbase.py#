@@ -14,13 +14,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import os
+# import os
 
 # from cloudinstall.config import (INSTALL_TYPE_SINGLE,
 #                                  INSTALL_TYPE_MULTI,
 #                                  INSTALL_TYPE_LANDSCAPE)
-from cloudinstall.state import InstallState
-import cloudinstall.utils as utils
+# from cloudinstall.state import InstallState
+# import cloudinstall.utils as utils
 from cloudinstall.signals import Signal
 from cloudinstall.controllers.install import (InstallPath,
                                               SingleInstall,

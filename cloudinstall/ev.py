@@ -14,13 +14,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import urwid
-import sys
-import cloudinstall.utils as utils
-from cloudinstall.state import ControllerState
 
+# from cloudinstall.state import ControllerState
+# import cloudinstall.utils as utils
+# import sys
+# import threading
+from cloudinstall.palette import STYLES
 import logging
-import threading
+import urwid
 
 log = logging.getLogger('cloudinstall.ev')
 
@@ -28,9 +29,6 @@ log = logging.getLogger('cloudinstall.ev')
 class EventLoop:
 
     """ Abstracts out event loops in different scenarios
-
-    TODO: finish asyncio implementation when urwid 1.3.0
-    becomes available.
     """
 
     def __init__(self, ui, config, log):
@@ -38,76 +36,50 @@ class EventLoop:
         self.config = config
         self.log = log
         self.error_code = 0
-        self._callback_map = {}
+        # self._callback_map = {}
+        self.loop = self._build_loop()
 
-        self.loop = None
+        # if not self.config.getopt('headless'):
+        #     self.loop = self._build_loop()
+        #     self.loop.set_alarm_in(2, self.check_thread_exit_event)
+        #     self._loop_thread = threading.current_thread()
+        #     self._thread_exit_event = threading.Event()
 
-        if not self.config.getopt('headless'):
-            self.loop = self._build_loop()
-            self.loop.set_alarm_in(2, self.check_thread_exit_event)
-            self._loop_thread = threading.current_thread()
-            self._thread_exit_event = threading.Event()
+    # def register_callback(self, key, val):
+    #     """ Registers some additional callbacks that didn't make sense
+    #     to be added as part of its initial creation
 
-    def register_callback(self, key, val):
-        """ Registers some additional callbacks that didn't make sense
-        to be added as part of its initial creation
-
-        TODO: Doubt this is the best way as its more of a band-aid
-        to core.py/add_charm and hotkeys in the gui.
-        """
-        self._callback_map[key] = val
-
-    def _build_loop(self):
-        """ Returns event loop configured with color palette """
-        loop = urwid.MainLoop(self.ui, self.config.STYLES,
-                              unhandled_input=self.header_hotkeys)
-        utils.make_screen_hicolor(loop.screen)
-        loop.screen.register_palette(self.config.STYLES)
-        return loop
+    #     TODO: Doubt this is the best way as its more of a band-aid
+    #     to core.py/add_charm and hotkeys in the gui.
+    #     """
+    #     self._callback_map[key] = val
 
     def header_hotkeys(self, key):
         if not self.config.getopt('headless'):
-            if key in ['j', 'down']:
-                self.ui.focus_next()
-            if key in ['k', 'up']:
-                self.ui.focus_previous()
-            if key == 'esc':
-                self.ui.hide_widget_on_top()
-            if key in ['h', 'H', '?']:
-                self.ui.show_help_info()
-            if key in ['a', 'A', 'f6']:
-                if self.config.getopt('current_state') != \
-                   ControllerState.SERVICES:
-                    return
-                self.config.setopt('current_state',
-                                   ControllerState.ADD_SERVICES.value)
             if key in ['q', 'Q']:
                 self.exit(0)
-            if key in ['r', 'R', 'f5']:
-                self.ui.status_info_message("View was refreshed")
-                self._callback_map['refresh_display']()
 
-    def exit(self, err=0):
-        self.error_code = err
-        self.log.info("Stopping eventloop")
-        if self.config.getopt('headless'):
-            sys.exit(err)
+    # def exit(self, err=0):
+    #     self.error_code = err
+    #     self.log.info("Stopping eventloop")
+    #     if self.config.getopt('headless'):
+    #         sys.exit(err)
 
-        if threading.current_thread() == self._loop_thread:
-            raise urwid.ExitMainLoop()
-        else:
-            self._thread_exit_event.set()
-            log.debug("{} exiting, deferred UI exit "
-                      "to main thread.".format(
-                          threading.current_thread().name))
+    #     if threading.current_thread() == self._loop_thread:
+    #         raise urwid.ExitMainLoop()
+    #     else:
+    #         self._thread_exit_event.set()
+    #         log.debug("{} exiting, deferred UI exit "
+    #                   "to main thread.".format(
+    #                       threading.current_thread().name))
 
-    def check_thread_exit_event(self, *args, **kwargs):
-        if self._thread_exit_event.is_set():
-            raise urwid.ExitMainLoop()
-        self.loop.set_alarm_in(2, self.check_thread_exit_event)
+    def exit(self):
+        raise urwid.ExitMainLoop()
 
-    def close(self):
-        pass
+    # def check_thread_exit_event(self, *args, **kwargs):
+    #     if self._thread_exit_event.is_set():
+    #         raise urwid.ExitMainLoop()
+    #     self.loop.set_alarm_in(2, self.check_thread_exit_event)
 
     def redraw_screen(self):
         if not self.config.getopt('headless'):
@@ -122,10 +94,18 @@ class EventLoop:
             self.loop.set_alarm_in(interval, cb)
         return
 
-    def run(self, cb=None):
-        """ Run eventloop
+    def _build_loop(self):
+        additional_opts = {
+            'screen': urwid.raw_display.Screen(),
+            'unhandled_input': self.header_hotkeys,
+            'handle_mouse': False
+        }
+        additional_opts['screen'].set_terminal_properties(colors=256)
+        additional_opts['screen'].reset_default_terminal_palette()
+        return urwid.MainLoop(self.ui, STYLES, **additional_opts)
 
-        :param func cb: (optional) callback
+    def run(self):
+        """ Run eventloop
         """
         if not self.config.getopt('headless'):
             try:

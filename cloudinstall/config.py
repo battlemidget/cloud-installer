@@ -23,53 +23,44 @@ import logging
 log = logging.getLogger('cloudinstall.config')
 
 
-# The values of these three install types are user-visible strings:
-INSTALL_TYPE_SINGLE = ("Single", "Fully containerized OpenStack installation "
-                       "on a single machine.")
-INSTALL_TYPE_MULTI = ("Multi", "OpenStack installation utilizing MAAS.")
-INSTALL_TYPE_LANDSCAPE = ("Landscape OpenStack Autopilot",
-                          "The Canonical Distribution "
-                          "- Enterprise Openstack Install and Management.")
-
-
 class ConfigException(Exception):
     pass
 
 
 class Config:
-    STYLES = [
-        ('body', 'white', 'black'),
-        ('header_menu', 'light gray', 'dark gray'),
-        ('header_title', 'light gray,bold', 'dark magenta'),
-        ('subheading', 'dark gray,bold', 'default'),
-        ('deploy_highlight_start', 'dark gray', 'light green'),
-        ('deploy_highlight_end', 'dark gray', 'dark green'),
-        ('disabled_button', 'black', 'white'),
-        ('disabled_button_focus', 'black', 'light gray'),
-        ('divider_line', 'light gray', 'default'),
-        ('filter', 'dark gray,underline', 'white'),
-        ('filter_focus', 'dark gray,underline', 'light gray'),
-        ('focus', 'white', 'dark gray'),
-        ('radio focus', 'white,bold', 'dark magenta'),
-        ('input', 'white', 'dark gray'),
-        ('input focus', 'dark magenta,bold', 'dark gray'),
-        ('dialog', 'white', 'dark gray'),
-        ('status_extra', 'light gray,bold', 'dark gray'),
-        ('error', 'white', 'dark red'),
-        ('info', 'light green', 'default'),
-        ('label', 'dark gray', 'default'),
-        ('error_icon', 'light red,bold', 'default'),
-        ('pending_icon_on', 'light blue,bold', 'default'),
-        ('pending_icon', 'dark blue', 'default'),
-        ('success_icon', 'light green', 'default'),
-        ('button_primary', 'white', 'dark gray', 'default', 'white', '#d51'),
-        ('button_primary focus', 'dark blue,bold', 'dark gray', 'default',
-         'white', '#b30'),
-        ('button_secondary', 'white', 'dark gray', 'default',
-         '#aaa', 'dark gray'),
-        ('button_secondary focus', 'dark blue,bold', 'dark gray', 'default',
-         'white', 'dark gray')
-    ]
+    # STYLES = [
+    #     ('body', 'white', 'black'),
+    #     ('header_menu', 'light gray', 'dark gray'),
+    #     ('header_title', 'light gray,bold', 'dark magenta'),
+    #     ('subheading', 'dark gray,bold', 'default'),
+    #     ('deploy_highlight_start', 'dark gray', 'light green'),
+    #     ('deploy_highlight_end', 'dark gray', 'dark green'),
+    #     ('disabled_button', 'black', 'white'),
+    #     ('disabled_button_focus', 'black', 'light gray'),
+    #     ('divider_line', 'light gray', 'default'),
+    #     ('filter', 'dark gray,underline', 'white'),
+    #     ('filter_focus', 'dark gray,underline', 'light gray'),
+    #     ('focus', 'white', 'dark gray'),
+    #     ('radio focus', 'white,bold', 'dark magenta'),
+    #     ('input', 'white', 'dark gray'),
+    #     ('input focus', 'dark magenta,bold', 'dark gray'),
+    #     ('dialog', 'white', 'dark gray'),
+    #     ('status_extra', 'light gray,bold', 'dark gray'),
+    #     ('error', 'white', 'dark red'),
+    #     ('info', 'light green', 'default'),
+    #     ('label', 'dark gray', 'default'),
+    #     ('error_icon', 'light red,bold', 'default'),
+    #     ('pending_icon_on', 'light blue,bold', 'default'),
+    #     ('pending_icon', 'dark blue', 'default'),
+    #     ('success_icon', 'light green', 'default'),
+    #     ('button_primary', 'white', 'dark gray', 'default', 'white', '#d51'),
+    #     ('button_primary focus', 'dark blue,bold', 'dark gray', 'default',
+    #      'white', '#b30'),
+    #     ('button_secondary', 'white', 'dark gray', 'default',
+    #      '#aaa', 'dark gray'),
+    #     ('button_secondary focus', 'dark blue,bold', 'dark gray', 'default',
+    #      'white', 'dark gray')
+    # ]
 
     def __init__(self, cfg_obj=None, cfg_file=None):
         if os.getenv("FAKE_API_DATA"):
@@ -93,12 +84,12 @@ class Config:
         except IOError:
             raise ConfigException("Unable to save configuration.")
 
-    def install_types(self):
-        """ Installer types
-        """
-        return [INSTALL_TYPE_LANDSCAPE,
-                INSTALL_TYPE_MULTI,
-                INSTALL_TYPE_SINGLE]
+    # def install_types(self):
+    #     """ Installer types
+    #     """
+    #     return [INSTALL_TYPE_LANDSCAPE,
+    #             INSTALL_TYPE_MULTI,
+    #             INSTALL_TYPE_SINGLE]
 
     @property
     def pidfile(self):

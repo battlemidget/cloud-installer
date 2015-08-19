@@ -27,6 +27,11 @@ Ubuntu OpenStack Installer - Choose Install Type
                                [ Cancel  ]
 """
 
+from cloudinstall.view import ViewPolicy
+from cloudinstall.ui.buttons import cancel_btn, confirm_btn
+from cloudinstall.ui.utils import Color, Padding
+from cloudinstall.ui.lists import SimpleList
+from urwid import BoxAdapter, ListBox, Pile
 import logging
 
 
@@ -37,6 +42,37 @@ class InstallPathViewException(Exception):
     "Problem in install path selection view"
 
 
-class InstallPathView(WidgetWrap):
-    def __init__(self):
-        pass
+class InstallPathView(ViewPolicy):
+    def __init__(self, model, signal):
+        self.model = model
+        self.signal = signal
+        body = [
+            Padding.center_79(self._build_model_inputs()),
+            Padding.line_break(""),
+            Padding.center_20(self._build_buttons())
+        ]
+        super().__init__(ListBox(body))
+
+    def _build_buttons(self):
+        self.buttons = [
+            Color.button_secondary(
+                cancel_btn(label="Quit", on_press=self.cancel),
+                focus_map="button_secondary focus")
+        ]
+        return Pile(self.buttons)
+
+    def _build_model_inputs(self):
+        selection = []
+        for ipath in self.model.get_menu():
+            selection.append(Color.button_primary(
+                confirm_btn(label=ipath, on_press=self.confirm),
+                focus_map="button_primary focus"))
+
+        return BoxAdapter(SimpleList(selection),
+                          height=len(selection))
+
+    def confirm(self, result):
+        self.signal.emit_signal(self.model.get_signal_by_name(result.label))
+
+    def cancel(self, button):
+        raise SystemExit("Exiting Installer.")
