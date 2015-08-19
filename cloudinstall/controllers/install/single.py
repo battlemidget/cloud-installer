@@ -27,6 +27,7 @@ from cloudinstall import utils, netutils
 from cloudinstall.api.container import (Container,
                                         NoContainerIPException,
                                         ContainerRunException)
+from cloudinstall.ui.views.install.single import SingleInstallView
 
 
 log = logging.getLogger('cloudinstall.c.i.single')
@@ -38,11 +39,9 @@ class SingleInstallException(Exception):
 
 class SingleInstall:
 
-    def __init__(self, loop, display_controller, config):
-        self.display_controller = display_controller
+    def __init__(self, ui, config):
+        self.ui = ui
         self.config = config
-        self.loop = loop
-        self.tasker = self.display_controller.tasker(loop, config)
         self.progress_output = ""
         username = utils.install_user()
         self.container_name = 'openstack-single-{}'.format(username)
@@ -174,9 +173,6 @@ class SingleInstall:
     def create_container_and_wait(self):
         """ Creates container and waits for cloud-init to finish
         """
-        self.tasker.start_task("Creating Container",
-                               self.read_container_status)
-
         Container.create(self.container_name, self.userdata)
 
         with open(os.path.join(self.container_abspath, 'fstab'), 'w') as f:
@@ -218,8 +214,6 @@ class SingleInstall:
         Container.wait_checked(self.container_name,
                                lxc_logfile)
 
-        self.tasker.start_task("Initializing Container",
-                               self.read_cloud_init_output)
         tries = 0
         while not self.cloud_init_finished(tries):
             time.sleep(1)
@@ -232,8 +226,6 @@ class SingleInstall:
         lxc_network = self.write_lxc_net_config()
         self.add_static_route(lxc_network)
 
-        self.tasker.start_task("Installing Dependencies",
-                               self.read_progress_output)
         log.debug("Installing openstack & openstack-single directly, "
                   "and juju-local, libvirt-bin and lxc via deps")
         Container.run(self.container_name,
@@ -408,14 +400,6 @@ class SingleInstall:
                             "reload will be required.")
 
     def run(self):
-        self.tasker.register_tasks([
-            "Initializing Environment",
-            "Creating Container",
-            "Initializing Container",
-            "Installing Dependencies",
-            "Bootstrapping Juju"])
-
-        self.tasker.start_task("Initializing Environment")
         self.ensure_nested_kvm()
         if self.config.getopt('headless'):
             self.do_install()
@@ -481,8 +465,6 @@ class SingleInstall:
 
         # start the party
         cloud_status_bin = ['openstack-status']
-        self.tasker.start_task("Bootstrapping Juju",
-                               self.read_progress_output)
         Container.run(self.container_name,
                       "{0} juju --debug bootstrap".format(
                           self.config.juju_home(use_expansion=True)),
@@ -492,7 +474,6 @@ class SingleInstall:
             "{0} juju status".format(
                 self.config.juju_home(use_expansion=True)),
             use_ssh=True)
-        self.tasker.stop_current_task()
 
         self.display_controller.status_info_message(
             "Starting cloud deployment")

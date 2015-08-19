@@ -50,7 +50,6 @@ from cloudinstall.placement.ui.add_services_dialog import AddServicesDialog
 log = logging.getLogger('cloudinstall.gui')
 sys.excepthook = utils.global_exchandler
 
-TITLE_TEXT = "Ubuntu OpenStack Installer - Dashboard"
 
 padding = functools.partial(Padding, left=2, right=2)
 
