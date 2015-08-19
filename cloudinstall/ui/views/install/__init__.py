@@ -14,3 +14,4 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from .single import SingleInstallView  # NOQA
+from .path import InstallPathView  # NOQA

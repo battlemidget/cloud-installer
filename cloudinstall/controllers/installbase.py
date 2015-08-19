@@ -22,10 +22,7 @@ import logging
 # from cloudinstall.state import InstallState
 # import cloudinstall.utils as utils
 from cloudinstall.signals import Signal
-from cloudinstall.controllers.install import (InstallPath,
-                                              SingleInstall,
-                                              LandscapeInstall,
-                                              MultiInstallExistingMaas)
+from cloudinstall.controllers.install import InstallPathController
 
 
 log = logging.getLogger('cloudinstall.c.installbase')
@@ -41,10 +38,7 @@ class InstallController:
         self.loop = loop
         self.signal = Signal()
         self.controllers = {
-            "installpath": InstallPath(self.ui, self.signal),
-            "single": SingleInstall(self.ui, self.signal),
-            "multi": MultiInstallExistingMaas(self.ui, self.signal),
-            "landscape": LandscapeInstall(self.ui, self.signal)
+            "installpath": InstallPathController(self.ui, self.signal),
         }
         # self.install_type = None
         # self.config.setopt('current_state', InstallState.RUNNING.value)
@@ -63,7 +57,7 @@ class InstallController:
         signals = []
 
         # Add quit signal
-        signals.append(('quit', self.exit))
+        signals.append(('quit', self.loop.exit))
         self.signal.connect_signals(signals)
 
         # Registers signals from each controller

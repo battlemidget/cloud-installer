@@ -44,8 +44,8 @@ class OpenstackInstallUI(WidgetWrap):
         key = key_conversion_map.get(key, key)
         return super().keypress(size, key)
 
-    def set_header(self, title=None, excerpt=None):
-        self.frame.header = InstallHeader(title, excerpt)
+    def set_header(self, title=None):
+        self.frame.header = InstallHeader(title)
 
     def set_footer(self, message):
         self.frame.footer = InstallFooter(message)
@@ -69,8 +69,8 @@ class OpenstackStatusUI(WidgetWrap):
         key = key_conversion_map.get(key, key)
         return super().keypress(size, key)
 
-    def set_header(self, title=None, excerpt=None):
-        self.frame.header = StatusHeader(title, excerpt)
+    def set_header(self, title=None):
+        self.frame.header = StatusHeader(title)
 
     def set_footer(self, message):
         self.frame.footer = StatusFooter(message)

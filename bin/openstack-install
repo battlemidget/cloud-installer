@@ -235,8 +235,8 @@ if __name__ == '__main__':
     try:
         install = InstallController(
             ui=ui, config=cfg, loop=ev)
-    except:
-        print("Unable to start install controller")
+    except Exception as e:
+        print("Unable to start install controller: {}".format(e))
         sys.exit(1)
 
     logger.info('Running {} release'.format(

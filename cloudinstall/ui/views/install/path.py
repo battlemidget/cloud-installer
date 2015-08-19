@@ -63,9 +63,9 @@ class InstallPathView(ViewPolicy):
 
     def _build_model_inputs(self):
         selection = []
-        for ipath in self.model.get_menu():
+        for label, sig, _ in self.model.get_menu():
             selection.append(Color.button_primary(
-                confirm_btn(label=ipath, on_press=self.confirm),
+                confirm_btn(label=label, on_press=self.confirm),
                 focus_map="button_primary focus"))
 
         return BoxAdapter(SimpleList(selection),

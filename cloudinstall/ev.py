@@ -19,7 +19,7 @@
 # import cloudinstall.utils as utils
 # import sys
 # import threading
-from cloudinstall.palette import STYLES
+from cloudinstall.ui.palette import STYLES
 import logging
 import urwid
 

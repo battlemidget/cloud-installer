@@ -16,3 +16,4 @@
 from .single import SingleInstall  # NOQA
 from .landscape import LandscapeInstall  # NOQA
 from .multi import (MultiInstall, MultiInstallExistingMaas, LandscapeInstallFinal)  # NOQA
+from .path import InstallPathController  # NOQA

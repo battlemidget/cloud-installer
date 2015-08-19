@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-from subiquity.model import ModelPolicy
+from cloudinstall.model import ModelPolicy
 
 
 log = logging.getLogger('subiquity.models.installpath')
