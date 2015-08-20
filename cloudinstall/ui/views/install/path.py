@@ -66,7 +66,7 @@ class InstallPathView(ViewPolicy):
     def _build_model_inputs(self):
         selection = []
         rows = 0
-        for label, sig, _ in self.model.get_menu():
+        for label in self.model.get_menu():
             desc_rows, desc = self.model.get_description(label)
             rows = rows + desc_rows
             col = Columns(
@@ -84,7 +84,13 @@ class InstallPathView(ViewPolicy):
                           height=len(selection) + 2 + rows)
 
     def confirm(self, result):
-        self.signal.emit_signal(self.model.get_signal_by_name(result.label))
+        name = result.label
+        if "Single" in name:
+            self.signal.emit_signal("install:single")
+        if "Multi" in name:
+            self.signal.emit_signal("install:multi")
+        if "Landscape OpenStack Autopilot" in name:
+            self.signal.emit_signal("install:landscape")
 
     def cancel(self, button):
         raise SystemExit("Exiting Installer.")

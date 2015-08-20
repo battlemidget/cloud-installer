@@ -26,110 +26,66 @@ from functools import partial
 from cloudinstall.log import setup_logger
 import cloudinstall.utils as utils
 from cloudinstall.ui.frame import OpenstackInstallUI
-from cloudinstall.consoleui import ConsoleUI
 from cloudinstall.controllers.installbase import InstallController
-from cloudinstall.config import Config
 from cloudinstall.ev import EventLoop
 from cloudinstall import __version__ as version
 
-CFG_FILE = os.path.join(utils.install_home(),
-                        '.cloud-install/config.yaml')
+CFG_DIR = os.path.join(utils.install_home(), '.cloud-install')
+CFG_FILE = os.path.join(CFG_DIR, 'config.conf')
 
 
 def parse_options(argv):
     parser = argparse.ArgumentParser(description='Ubuntu Openstack Installer',
-                                     prog='openstack-install',
-                                     argument_default=argparse.SUPPRESS)
-    parser.add_argument('-i', '--install-only', action='store_true',
-                        dest='install_only',
-                        help='install and bootstrap MAAS/Juju/Landscape '
-                        '(as applicable) only. '
-                        'Will not deploy any OpenStack services '
-                        'in single or multi mode. '
-                        'You can invoke openstack-status manually to '
-                        'continue.')
+                                     prog='openstack-install')
     parser.add_argument('-u', '--uninstall', action='store_true',
-                        dest='uninstall',
+                        dest='uninstall', default=False,
                         help='Uninstalls the current cloud including removing '
                         'of packages.')
-    parser.add_argument('-c', '--config', type=str, dest='config_file',
-                        help="Custom configuration for OpenStack installer.")
-    parser.add_argument('--charm-config', type=str, dest='charm_config_file',
-                        help="Additional charm settings")
-    parser.add_argument('--charm-plugin-dir', type=str,
-                        dest='charm_plugin_dir',
-                        help="Location of additional charm plugins to extend "
-                        "the installer.")
+    parser.add_argument('--advanced-config', action="store_true",
+                        help="Prompt user for setting advanced configuration "
+                        "options", default=False)
     parser.add_argument('-g', '--get-config', type=str, dest='get_config',
                         default=None,
                         help="with arg <key>, prints config value for 'key' "
                         "to stdout and exits.")
-    parser.add_argument('--openstack-release',
-                        dest='openstack_release', default="kilo",
-                        choices=['icehouse', 'juno', 'kilo'],
-                        help="Specify a specific OpenStack release.")
-    parser.add_argument('--openstack-tip', action="store_true",
-                        dest='openstack_tip', default=False,
-                        help="Deploy from OpenStack master branches.")
-    parser.add_argument('-a', type=str, default=None,
-                        help='<arch, ..> comma-separated list of '
-                        'architectures to filter available cloud '
-                        'images with which to populate Glance, '
-                        'e.g. amd64,arm64', dest='arch')
-    parser.add_argument('-r', type=str, default=None, dest='release',
-                        help='<rel, ..> comma-separated list of Ubuntu '
-                        'releases to filter available cloud images with '
-                        'which to populate Glance, e.g. precise,trusty')
-    parser.add_argument('--edit-placement', action='store_true',
-                        dest='edit_placement',
-                        help='Show machine placement UI before deploying')
-    parser.add_argument('--upstream-ppa', action="store_true",
-                        dest='upstream_ppa',
-                        help='Use upstream experimental ppa.')
+    # parser.add_argument('--edit-placement', action='store_true',
+    #                     dest='edit_placement', default=False,
+    #                     help='Show machine placement UI before deploying')
     parser.add_argument('--upstream-deb', dest='upstream_deb',
                         help='Upload a local copy of openstack debian package '
                         'to be used in a single install. (DEVELOPERS)')
-    parser.add_argument('--apt-proxy', dest='apt_proxy',
-                        help='Specify APT proxy')
-    parser.add_argument('--apt-https-proxy', dest='apt_https_proxy',
-                        help='Specify APT HTTPS proxy')
-    parser.add_argument('--http-proxy', dest='http_proxy',
-                        help='Specify HTTP proxy')
-    parser.add_argument('--https-proxy', dest='https_proxy',
-                        help='Specify HTTPS proxy')
-    parser.add_argument('--headless', action='store_true',
-                        help="Run deployment without prompts/gui",
-                        dest='headless')
-    parser.add_argument('--debug', action='store_true',
-                        dest='debug',
-                        help='Debug mode')
-    parser.add_argument('--next-charms', dest='next_charms',
-                        action='store_true',
-                        help="Use /next charms to test upcoming features.")
-    parser.add_argument('--use-nclxd', dest='use_nclxd', action="store_true",
-                        default=False,
-                        help="Enable LXD support for Nova Compute. Requires"
-                        "--series vivid to be set.")
-    # TODO: currently only works for single installs. Use
-    # SHOW_JUJU_LOGS=1 in the env to enable. See github issue #421
-    # parser.add_argument('--show-logs', action='store_true',
-    #                     help="Show Juju log tails for deploying services.",
-    #                     dest='show_logs')
-    parser.add_argument('--series', dest='ubuntu_series',
-                        default='trusty',
-                        help="Ubuntu series codename (eg. 'trusty', 'utopic') "
-                        "for juju default")
     parser.add_argument(
         '--version', action='version', version='%(prog)s {}'.format(version))
     return parser.parse_args(argv)
 
+
+def set_config_defaults(config):
+    config['settings'] = {
+        'pidfile': os.path.join(CFG_DIR, 'openstack.pid'),
+        'cfg_path': CFG_DIR,
+        'cfg_file': CFG_FILE,
+        'placements_file': os.path.join(CFG_DIR, 'placements.yaml')
+    }
+    config['settings.juju'] = {
+        'path': os.path.join(CFG_DIR, 'juju'),
+        'home': os.path.join(CFG_DIR, 'juju'),
+        'home_expanded': "~/.cloud-install/juju",
+        'environments_path': os.path.join(CFG_DIR, 'juju', 'environments')
+    }
+    config['settings.single'] = {
+        'container_name': 'openstack-single-{}'.format(utils.install_user())
+    }
+    return config
+
+
 if __name__ == '__main__':
     opts = parse_options(sys.argv[1:])
-    cfg = Config(utils.populate_config(opts))
-    if 'uninstall' in opts:
+    if opts.uninstall:
         msg = ("Warning:\n\nThis will uninstall OpenStack and "
                "make a best effort to return the system back "
-               "to its original state.")
+               "to its original state.\n\n"
+               "If you haven't backed up your ~/.cloud-install/config.conf "
+               "nows a good time to do so before proceeding.")
         print(msg)
         yn = input("Proceed? [y/N] ")
 
@@ -157,17 +113,34 @@ if __name__ == '__main__':
         conf_bin = "/usr/bin/openstack-config"
         os.execl(conf_bin, conf_bin, opts.get_config)
 
-    # see github issue #421:
-    if os.environ.get("SHOW_JUJU_LOGS", False):
-        cfg.setopt('show_logs', True)
-
     # validate series exists for nclxd
-    if opts.use_nclxd and opts.ubuntu_series[0] < 'v':
-        print("You must pass --series vivid or higher in order to use nclxd.")
+    # if opts.use_nclxd and opts.ubuntu_series[0] < 'v':
+    #     print("You must pass --series vivid or higher in order to use nclxd.")
+    #     sys.exit(1)
+
+    # New install, write default config
+    if not os.path.exists(CFG_DIR):
+        os.makedirs(CFG_DIR)
+        utils.chown(CFG_DIR, utils.install_user())
+        config = utils.read_ini('/usr/share/openstack/config.conf')
+        config = set_config_defaults(config)
+        with open(CFG_FILE, 'w') as config_w:
+            config.write(config_w)
+    elif os.path.isfile(CFG_FILE) and not opts.advanced_config:
+        msg = ("An existing configuration was found at "
+               "~/.cloud-install/config.conf. This could indicate an "
+               "existing install. If you are wanting to do further "
+               "customizations before install please re-try with \n\n"
+               "$ sudo openstack-install --advanced-config\n\n"
+               "This will bring up the installer in advanced configuration "
+               "mode and allow you to fine-tune the install further.")
+        print(msg)
         sys.exit(1)
+    else:
+        config = utils.read_ini_existing()
 
     try:
-        setup_logger(headless=cfg.getopt('headless'))
+        setup_logger()
     except PermissionError:  # NOQA
         print("Permission error accessing log file.\n"
               "This probably indicates a broken partial install.\n"
@@ -177,29 +150,21 @@ if __name__ == '__main__':
               " for reporting a bug.)")
         sys.exit(1)
 
-    logger = logging.getLogger('cloudinstall')
-    logger.info('Starting OpenStack Installer v{}'.format(version))
-    logger.info('Start command: {}'.format(sys.argv))
+    log = logging.getLogger('cloudinstall')
+    log.info('Starting OpenStack Installer v{}'.format(version))
+    log.info('Start command: {}'.format(sys.argv))
 
     if os.geteuid() != 0:
         sys.exit(
             "Installing a cloud requires root privileges. Rerun with sudo")
 
-    if not os.path.exists(cfg.cfg_path):
-        os.makedirs(cfg.cfg_path)
-        utils.chown(cfg.cfg_path, utils.install_user())
+    juju_path = config['settings.juju']['path']
+    if not os.path.exists(juju_path):
+        log.info("Creating juju directories: {}".format(juju_path))
+        os.makedirs(juju_path)
+        utils.chown(juju_path, utils.install_user(), utils.install_user())
 
-    if not os.path.exists(cfg.juju_path()):
-        logger.info("Creating juju directories: {}".format(cfg.juju_path()))
-        os.makedirs(cfg.juju_path())
-        utils.chown(
-            cfg.juju_path(), utils.install_user(), utils.install_user())
-
-    if not cfg.getopt('container_name'):
-        cfg.setopt('container_name',
-                   'openstack-single-{}'.format(utils.install_user()))
-
-    if os.path.isfile(os.path.join(cfg.cfg_path, 'installed')):
+    if os.path.isfile(os.path.join(CFG_DIR, 'installed')):
         msg = ("\n\nError:\n\n"
                "Previous installation detected. Did you mean to run "
                "openstack-status instead? \n"
@@ -209,49 +174,42 @@ if __name__ == '__main__':
         sys.exit(1)
 
     out = utils.get_command_output(
-        '{} juju api-endpoints'.format(cfg.juju_home()), user_sudo=True)
+        '{} juju api-endpoints'.format(
+            config['settings.juju']['home']), user_sudo=True)
     if out['status'] == 0:
-        msg = ("\n\nExisting OpenStack environment detected. Please destroy "
-               "that environment before proceeding with a new install.\n\n")
+        msg = ("Existing OpenStack environment detected. Please destroy "
+               "that environment before proceeding with a new install.")
         print(msg)
         sys.exit(1)
 
-    if cfg.getopt('headless'):
-        ui = ConsoleUI()
-    else:
-        ui = OpenstackInstallUI()
+    ui = OpenstackInstallUI()
 
-    # Set proxy
-    if cfg.getopt('http_proxy'):
-        os.environ['HTTP_PROXY'] = cfg.getopt('http_proxy')
-        os.environ['http_proxy'] = cfg.getopt('http_proxy')
-    if cfg.getopt('https_proxy'):
-        os.environ['HTTPS_PROXY'] = cfg.getopt('https_proxy')
-        os.environ['https_proxy'] = cfg.getopt('https_proxy')
+    # # Set proxy
+    # if cfg.getopt('http_proxy'):
+    #     os.environ['HTTP_PROXY'] = cfg.getopt('http_proxy')
+    #     os.environ['http_proxy'] = cfg.getopt('http_proxy')
+    # if cfg.getopt('https_proxy'):
+    #     os.environ['HTTPS_PROXY'] = cfg.getopt('https_proxy')
+    #     os.environ['https_proxy'] = cfg.getopt('https_proxy')
 
     # Choose event loop
-    ev = EventLoop(ui, cfg, logger)
+    ev = EventLoop(ui, config, log)
 
     try:
         install = InstallController(
-            ui=ui, config=cfg, loop=ev)
+            ui=ui, loop=ev)
     except Exception as e:
         print("Unable to start install controller: {}".format(e))
         sys.exit(1)
 
-    logger.info('Running {} release'.format(
-                cfg.getopt('openstack_release').capitalize()))
-
-    utils.spew(os.path.join(cfg.cfg_path, 'openstack_release'),
-               cfg.getopt('openstack_release'), owner=utils.install_user())
+    log.info('Running {} release'.format(
+        config['settings.openstack']['release']).capitalize())
 
     try:
         import atexit
-        atexit.register(partial(utils.cleanup, cfg))
+        atexit.register(partial(utils.cleanup, config))
         install.start()
     except:
-        if opts.debug and not cfg.getopt('headless'):
-            import pdb
-            pdb.post_mortem()
+        log.error("Couldn't cleanup properly.")
     finally:
         sys.exit(ev.error_code)

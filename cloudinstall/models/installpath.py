@@ -59,26 +59,11 @@ class InstallPathModel(ModelPolicy):
         ]
     }
 
-    # install_types = [
-    #     ("Single",
-    #      "install:single",
-    #      "single"),
-    #     ("Start Single Install",
-    #      "install:single:start",
-    #      "single_start"),
-    #     ("Multi",
-    #      "install:multi",
-    #      "multi"),
-    #     ("Landscape OpenStack Autopilot",
-    #      "install:landscape",
-    #      "landscape")
-    # ]
-
     def get_signals(self):
-        return self.signals + self.install_types
+        return self.signals
 
     def get_menu(self):
-        return self.install_types
+        return sorted(self.install_descriptions.keys())
 
     def get_signal_by_name(self, selection):
         for x, y, z in self.get_menu():

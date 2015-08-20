@@ -29,15 +29,15 @@ log = logging.getLogger("cloudinstall.a.i.single")
 
 
 class SingleInstallAPI:
-    def __init__(self, config):
-        self.config = config
+    def __init__(self):
+        self.config = utils.read_ini_existing()
         username = utils.install_user()
         self.container_name = 'openstack-single-{}'.format(username)
         self.container_path = '/var/lib/lxc'
         self.container_abspath = os.path.join(self.container_path,
                                               self.container_name)
         self.userdata = os.path.join(
-            self.config.cfg_path, 'userdata.yaml')
+            self.config['settings']['cfg_path'], 'userdata.yaml')
 
         # Sets install type
         self.config.setopt('install_type', 'Single')

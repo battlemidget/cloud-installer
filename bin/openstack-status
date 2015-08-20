@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- mode: python; -*-
 #
-# Copyright 2014 Canonical, Ltd.
+# Copyright 2014, 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -16,75 +16,48 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from functools import partial
 import argparse
 import logging
 import os
-import signal
 import sys
-from functools import partial
 
 # Handle imports where the path is not automatically updated during install.
 # This really only happens when a binary is not in the usual /usr/bin location
 lib_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, lib_dir)
 
-from cloudinstall.gui import PegasusGUI
-from cloudinstall.core import Controller
-from cloudinstall.consoleui import ConsoleUI
-from cloudinstall.ev import EventLoop
-from cloudinstall.api.container import Container
-from cloudinstall import utils
-from cloudinstall import log
-from cloudinstall.config import Config
 from cloudinstall import __version__ as version
-
-CFG_FILE = os.path.join(utils.install_home(),
-                        '.cloud-install/config.yaml')
-
-
-def sig_handler(signum, frame):
-    sys.exit(1)
-
-for sig in (signal.SIGTERM, signal.SIGQUIT, signal.SIGINT, signal.SIGHUP):
-    signal.signal(sig, sig_handler)
+from cloudinstall import utils
+from cloudinstall.api.container import Container
+from cloudinstall.core import Controller
+from cloudinstall.ev import EventLoop
+from cloudinstall.log import setup_logger
+from cloudinstall.ui.frame import OpenStackStatusUI
 
 
 def parse_options(argv):
     parser = argparse.ArgumentParser(description='Ubuntu Openstack Installer',
                                      prog='openstack-status',
                                      argument_default=argparse.SUPPRESS)
-    parser.add_argument('--edit-placement', action='store_true',
-                        dest='edit_placement',
-                        help='Show machine placement UI before deploying')
-    parser.add_argument('-c', '--config', type=str, dest='config_file',
-                        help="Custom configuration for OpenStack installer.",
-                        default=CFG_FILE)
-    parser.add_argument('--headless', action='store_true',
-                        help="Run deployment without prompts/gui",
-                        dest='headless')
-    parser.add_argument('--debug', action='store_true',
-                        dest='debug',
-                        help='Debug mode')
     parser.add_argument(
         '--version', action='version', version='%(prog)s {}'.format(version))
     return parser.parse_args(argv)
 
 if __name__ == '__main__':
     opts = parse_options(sys.argv[1:])
-    is_cfg_present = os.path.isfile(opts.config_file)
+    config = utils.read_ini_existing()
 
-    if not is_cfg_present:
+    if not config:
         print("No configuration found in ~/.cloud-install/config.yaml\n"
               "and no --config option passed. Please verify your\n"
               "installation and make sure ~/.cloud-install/config.yaml\n"
               "is there and correct.")
         sys.exit(1)
 
-    config = Config(utils.populate_config(opts))
-
     try:
-        log.setup_logger(headless=config.getopt('headless'))
-    except PermissionError:
+        setup_logger()
+    except PermissionError:  # NOQA
         print("Permission error accessing log file.\n"
               "This probably indicates a broken partial install.\n"
               "Please use 'openstack-install -u' to uninstall, "
@@ -96,7 +69,7 @@ if __name__ == '__main__':
     logger = logging.getLogger('cloudinstall')
     logger.info("Starting deployment of OpenStack")
 
-    if os.path.isfile(config.pidfile):
+    if os.path.isfile(config['settings']['pidfile']):
         print("Another instance of openstack-status is running. If you're "
               "sure there are no other instances, please remove "
               "~/.cloud-install/openstack.pid")
@@ -105,30 +78,26 @@ if __name__ == '__main__':
     # Run openstack-status within container on single installs
     out = utils.get_command_output('hostname', user_sudo=True)
     hostname = out['output'].rstrip()
+    # FIXME: test against container from lxc-ls output
     if config.is_single() and config.getopt('container_name') not in hostname:
         logger.info("Running status within container")
         Container.run_status(config.getopt('container_name'),
                              'openstack-status', config)
 
-    if config.getopt('headless'):
-        ui = ConsoleUI()
-    else:
-        ui = PegasusGUI()
-
+    ui = OpenStackStatusUI()
     ev = EventLoop(ui, config, logger)
 
-    core = Controller(ui=ui, config=config, loop=ev)
+    core = Controller(ui=ui, loop=ev)
     # Create pidfile
-    utils.spew(config.pidfile, str(os.getppid()), utils.install_user())
+    utils.spew(config['settings']['pidfile'],
+               str(os.getppid()),
+               utils.install_user())
 
     try:
         import atexit
         atexit.register(partial(utils.cleanup, config))
         core.start()
     except Exception as e:
-        if opts.debug and not config.getopt('headless'):
-            import pdb
-            pdb.post_mortem()
-        raise e
+        raise SystemExit(e)
     finally:
         sys.exit(ev.error_code)

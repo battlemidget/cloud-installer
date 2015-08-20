@@ -55,9 +55,8 @@ class EventLoop:
     #     self._callback_map[key] = val
 
     def header_hotkeys(self, key):
-        if not self.config.getopt('headless'):
-            if key in ['q', 'Q']:
-                self.exit(0)
+        if key in ['q', 'Q']:
+            self.exit(0)
 
     # def exit(self, err=0):
     #     self.error_code = err
@@ -82,16 +81,14 @@ class EventLoop:
     #     self.loop.set_alarm_in(2, self.check_thread_exit_event)
 
     def redraw_screen(self):
-        if not self.config.getopt('headless'):
-            try:
-                self.loop.draw_screen()
-            except AssertionError as e:
-                self.log.exception("exception failure in redraw_screen")
-                raise e
+        try:
+            self.loop.draw_screen()
+        except AssertionError as e:
+            self.log.exception("exception failure in redraw_screen")
+            raise e
 
     def set_alarm_in(self, interval, cb):
-        if not self.config.getopt('headless'):
-            self.loop.set_alarm_in(interval, cb)
+        self.loop.set_alarm_in(interval, cb)
         return
 
     def _build_loop(self):
@@ -107,16 +104,12 @@ class EventLoop:
     def run(self):
         """ Run eventloop
         """
-        if not self.config.getopt('headless'):
-            try:
-                self.loop.run()
-            except:
-                log.exception("Exception in ev.run():")
-                raise
+        try:
+            self.loop.run()
+        except:
+            log.exception("Exception in ev.run():")
+            raise
         return
 
     def __repr__(self):
-        if self.config.getopt('headless'):
-            return "<eventloop disabled>"
-        else:
-            return "<eventloop urwid based on select()>"
+        return "<eventloop urwid based on select()>"

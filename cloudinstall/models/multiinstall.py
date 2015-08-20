@@ -16,27 +16,24 @@
 import logging
 from cloudinstall.model import ModelPolicy
 
-log = logging.getLogger('cloudinstall.models.singleinstall')
+log = logging.getLogger('cloudinstall.models.multiinstall')
 
 
-class SingleInstallModel(ModelPolicy):
-    """ Single install model
+class MultiInstallModel(ModelPolicy):
+    """ Multi install model
     """
     prev_signal = ("Back to install path selection",
                    "installpath:show",
                    "install")
 
     signals = [
-        ("Start Single Install",
-         "install:single:start",
-         "single_start"),
-        ("Single Install Controller",
-         "install:single",
-         "single")
+        ("Start Multi Install",
+         "install:multi:start",
+         "multi_start"),
+        ("Multi Install Controller",
+         "install:multi",
+         "multi")
     ]
-    # ("Start Multi Install",
-    #  "install:multi:start",
-    #  "multi_start"),
     # ("Landscape OpenStack Autopilot",
     #  "install:landscape:start",
     #  "landscape_start")

@@ -62,36 +62,22 @@ class Config:
     #      'white', 'dark gray')
     # ]
 
-    def __init__(self, cfg_obj=None, cfg_file=None):
+    def __init__(self, cfg_obj):
         if os.getenv("FAKE_API_DATA"):
             self._juju_env = {"bootstrap-config": {'name': "fake",
                                                    'maas-server': "FAKE"}}
         else:
             self._juju_env = None
-        self.node_install_wait_interval = 0.2
-        if cfg_obj is None:
-            self._config = {}
-        else:
-            self._config = cfg_obj
-        self._cfg_file = cfg_file
+        self.cfg_obj = cfg_obj
 
-    def save(self):
+    def save(self, path):
         """ Saves configuration """
         try:
-            utils.spew(self.cfg_file,
-                       yaml.safe_dump(dict(self._config),
-                                      default_flow_style=False))
+            with open(path, 'w') as config:
+                self.cfg_obj.write(config)
         except IOError:
             raise ConfigException("Unable to save configuration.")
 
-    # def install_types(self):
-    #     """ Installer types
-    #     """
-    #     return [INSTALL_TYPE_LANDSCAPE,
-    #             INSTALL_TYPE_MULTI,
-    #             INSTALL_TYPE_SINGLE]
-
-    @property
     def pidfile(self):
         return os.path.join(self.cfg_path, 'openstack.pid')
 
@@ -127,24 +113,6 @@ class Config:
     def placements_filename(self):
         return os.path.join(self.cfg_path, 'placements.yaml')
 
-    def is_single(self):
-        if self.getopt('install_type') and \
-           'Single' in self.getopt('install_type'):
-            return True
-        return False
-
-    def is_multi(self):
-        if self.getopt('install_type') and \
-           'Multi' in self.getopt('install_type'):
-            return True
-        return False
-
-    def is_landscape(self):
-        if self.getopt('install_type') and \
-           'Landscape OpenStack Autopilot' in self.getopt('install_type'):
-            return True
-        return False
-
     def setopt(self, key, val):
         """ sets config option """
         try:
@@ -164,7 +132,10 @@ class Config:
 
     def juju_path(self):
         """ Returns path where juju environments reside """
-        return os.path.join(self.cfg_path, 'juju')
+        if not self.cfg_obj['settings.juju']['path']:
+            self.cfg_obj['settings.juju']['path'] = os.path.join(
+                self.cfg_path, 'juju')
+        return self.cfg_obj['settings.juju']['path']
 
     def juju_home(self, use_expansion=False):
         """ A string representing JUJU_HOME """

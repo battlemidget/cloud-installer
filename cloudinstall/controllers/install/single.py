@@ -42,7 +42,7 @@ class SingleInstallController(ControllerPolicy):
         self.ui = ui
         self.signal = signal
         self.model = SingleInstallModel()
-        self.api = SingleInstallAPI()
+        # self.api = SingleInstallAPI()
 
     def single(self):
         """ Start prompting for Single Install information
@@ -53,6 +53,12 @@ class SingleInstallController(ControllerPolicy):
         self.ui.set_header(title, excerpt)
         self.ui.set_body(SingleInstallView(self.model,
                                            self.signal))
+
+    def single_start(self, opts):
+        """ Start single install, processing opts
+        """
+        log.info("Starting a single installation.")
+        raise SystemExit("Single_start")
 
     # def read_container_status(self):
     #     return check_output("lxc-info -n {} -s "

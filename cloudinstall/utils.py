@@ -47,52 +47,6 @@ import requests
 
 log = logging.getLogger('cloudinstall.utils')
 
-# String with number of minutes, or None.
-blank_len = None
-
-
-def global_exchandler(type, value, tb):
-    """ helper routine capturing tracebacks and printing to log file """
-    tb_list = traceback.format_exception(type, value, tb)
-    log.debug("".join(tb_list))
-
-
-_async_exception_callback = None
-
-
-def register_async_exception_callback(cb):
-    global _async_exception_callback
-    _async_exception_callback = cb
-
-
-class DeepChainMap(ChainMap):
-    'Variant of ChainMap that allows direct updates to inner scopes'
-
-    def __setitem__(self, key, value):
-        for mapping in self.maps:
-            if key in mapping:
-                mapping[key] = value
-                return
-        self.maps[0][key] = value
-
-    def __delitem__(self, key):
-        for mapping in self.maps:
-            if key in mapping:
-                del mapping[key]
-                return
-        raise KeyError(key)
-
-
-class ExceptionLoggingThread(Thread):
-
-    def run(self):
-        try:
-            super().run()
-        except Exception as e:
-            global_exchandler(*sys.exc_info())
-            if _async_exception_callback:
-                _async_exception_callback(e)
-
 
 class UtilsException(Exception):
     pass
@@ -105,10 +59,9 @@ def cleanup(cfg):
     pid = os.path.join(install_home(), '.cloud-install/openstack.pid')
     if os.path.isfile(pid):
         os.remove(pid)
-    if not cfg.getopt('headless'):
-        log.debug('Attempting to reset the terminal')
-        sys.stderr.write("\x1b[2J\x1b[H")
-        call(['stty', 'sane'])
+    log.debug('Attempting to reset the terminal')
+    sys.stderr.write("\x1b[2J\x1b[H")
+    call(['stty', 'sane'])
     return
 
 
@@ -120,27 +73,6 @@ def write_status_file(status='', msg=''):
     """
     status_file = os.path.join(install_home(), '.cloud-install/finished.json')
     spew(status_file, json.dumps(dict(status=status, msg=msg)))
-
-
-def sanitize_cli_opts(opts):
-    """ removes false and null items from argument list """
-    return {k: v for k, v in vars(opts).items() if v}
-
-
-def populate_config(opts):
-    """ populate configuration suitable for loading in the config
-    object merging in cli options.
-
-    :param opts: argparse Namespace class of options
-    """
-    cfg_from_cli = sanitize_cli_opts(opts)
-    if 'config_file' not in opts:
-        return cfg_from_cli
-
-    # Override config items from local config
-    if opts.config_file:
-        cfg_override = yaml.load(slurp(opts.config_file))
-        return merge_dicts(cfg_from_cli, cfg_override)
 
 
 def load_ext_charms(plug_path, charm_modules):
@@ -207,16 +139,6 @@ def load_charm_byname(name):
     return import_module('cloudinstall.charms.{}'.format(name))
 
 
-def merge_dicts(*dicts):
-    """
-    Return a new dictionary that is the result of merging the arguments
-    together.
-    In case of conflicts, later arguments take precedence over earlier
-    arguments.
-    """
-    return DeepChainMap(*dicts)
-
-
 def render_charm_config(config):
     """ Render a config for setting charm config options
 
@@ -226,49 +148,48 @@ def render_charm_config(config):
     """
     charm_conf = load_template('charmconf.yaml')
     template_args = dict(
-        install_type=config.getopt('install_type'),
-        openstack_password=config.getopt('openstack_password'))
+        install_type=config['settings']['install_type'],
+        openstack_password=config['settings']['password'])
 
-    if config.getopt('openstack_tip'):
-        template_args['openstack_tip'] = config.getopt(
-            'openstack_tip')
-    template_args['openstack_release'] = config.getopt(
-        'openstack_release')
+    openstack_settings = config['settings.openstack']
+    if openstack_settings['tip']:
+        template_args['tip'] = openstack_settings['tip']
+    template_args['openstack_release'] = openstack_settings['release']
 
-    ubuntu_series = config.getopt('ubuntu_series')
-    openstack_release = config.getopt('openstack_release')
+    ubuntu_series = config['settings.juju']['series']
+    openstack_release = openstack_settings['release']
     openstack_origin = ("cloud:{}-{}".format(ubuntu_series,
                                              openstack_release))
 
     template_args['openstack_origin'] = openstack_origin
 
-    if config.is_single():
+    if config['settings']['single']:
         template_args['worker_multiplier'] = '1'
 
     # add http proxy settings - should not be necessary as juju sets
     # these in the charm execution environment, but required for
     # openstack-origin-git. See: https://launchpad.net/bugs/1472357
 
-    for pk in ['http_proxy', 'https_proxy']:
-        pv = config.getopt(pk)
-        if pv:
-            template_args[pk] = pv
+    http_proxy = config['settings.proxy']['http_proxy']
+    https_proxy = config['settings.proxy']['https_proxy']
+    template_args['http_proxy'] = http_proxy
+    template_args['https_proxy'] = https_proxy
 
     charm_conf_modified = charm_conf.render(**template_args)
     dest_yaml_path = os.path.join(config.cfg_path, 'charmconf.yaml')
     spew(dest_yaml_path, charm_conf_modified)
 
     # Check for custom charm options
-    charm_conf_custom_file = config.getopt('charm_config_file')
-    if charm_conf_custom_file and os.path.exists(charm_conf_custom_file):
-        log.debug("Found custom charm config, updating charm settings.")
-        charm_conf = yaml.load(slurp(dest_yaml_path))
-        charm_conf_custom = yaml.load(
-            slurp(config.getopt('charm_config_file')))
-        charm_conf_merged = merge_dicts(charm_conf,
-                                        charm_conf_custom)
-        spew(dest_yaml_path, yaml.safe_dump(
-            charm_conf_merged, default_flow_style=False))
+    # charm_conf_custom_file = config.getopt('charm_config_file')
+    # if charm_conf_custom_file and os.path.exists(charm_conf_custom_file):
+    #     log.debug("Found custom charm config, updating charm settings.")
+    #     charm_conf = yaml.load(slurp(dest_yaml_path))
+    #     charm_conf_custom = yaml.load(
+    #         slurp(config.getopt('charm_config_file')))
+    #     charm_conf_merged = merge_dicts(charm_conf,
+    #                                     charm_conf_custom)
+    #     spew(dest_yaml_path, yaml.safe_dump(
+    #         charm_conf_merged, default_flow_style=False))
 
 
 def chown(path, user, group=None, recursive=False):
@@ -508,32 +429,6 @@ def partition(pred, iterable):
     return (yes, no)
 
 
-def reset_blanking():
-    global blank_len
-    if blank_len is not None:
-        call(('setterm', '-blank', blank_len))
-
-
-@contextmanager
-def console_blank():
-    global blank_len
-    try:
-        with open('/sys/module/kernel/parameters/consoleblank') as f:
-            blank_len = f.read()
-    except (IOError, FileNotFoundError):  # NOQA
-        blank_len = None
-    else:
-        # Cannot use anything that captures stdout, because it is needed
-        # by the setterm command to write to the console.
-        call(('setterm', '-blank', '0'))
-        # Convert the interval from seconds to minutes.
-        blank_len = str(int(blank_len) // 60)
-
-    yield
-
-    reset_blanking()
-
-
 def randomString(size=6, chars=string.ascii_uppercase + string.digits):
     """ Generate a random string
 
@@ -644,7 +539,7 @@ def ssh_genkey():
         log.debug('ssh keys exist for this user, they will be used instead.')
 
 
-def read_ini(path):
+def read_ini_no_sections(path):
     """ Reads a basic INI like file without sections headers.
     Prepends a default section header for querying.
     """
@@ -652,6 +547,23 @@ def read_ini(path):
     config = configparser.ConfigParser()
     config.read_file(itertools.chain(['[DEFAULT]'], ini))
     return config
+
+
+def read_ini(path):
+    """ Reads a basic INI like file.
+    """
+    if not os.path.isfile(path):
+        return False
+    config = configparser.ConfigParser()
+    config.read(path)
+    return config
+
+
+def read_ini_existing():
+    """ Reads ini from existing config file
+    """
+    path = os.path.join(install_home(), '.cloud-install/config.conf')
+    return read_ini(path)
 
 
 def ssh_pubkey():
@@ -727,21 +639,6 @@ def format_constraint(k, v):
     if vs.isdecimal():
         vs = mb_to_human(v)
     return "{}={}".format(k, vs)
-
-
-def make_screen_hicolor(screen):
-    """returns a screen to pass to MainLoop init
-    with 256 colors.
-    """
-    screen.set_terminal_properties(256)
-    screen.reset_default_terminal_palette()
-    return screen
-
-
-def get_hicolor_screen(palette):
-    screen = urwid.raw_display.Screen()
-    screen.register_palette(palette)
-    return make_screen_hicolor(screen)
 
 
 def macgen():

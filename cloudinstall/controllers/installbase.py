@@ -14,16 +14,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-# import os
-
-# from cloudinstall.config import (INSTALL_TYPE_SINGLE,
-#                                  INSTALL_TYPE_MULTI,
-#                                  INSTALL_TYPE_LANDSCAPE)
-# from cloudinstall.state import InstallState
-# import cloudinstall.utils as utils
+import cloudinstall.utils as utils
 from cloudinstall.signals import Signal
-from cloudinstall.controllers.install import InstallPathController
-
+from cloudinstall.controllers.install import (InstallPathController,
+                                              SingleInstallController)
 
 log = logging.getLogger('cloudinstall.c.installbase')
 
@@ -32,23 +26,15 @@ class InstallController:
 
     """ Install controller """
 
-    def __init__(self, ui, config, loop):
+    def __init__(self, ui, loop):
         self.ui = ui
-        self.config = config
+        self.config = utils.read_ini_existing()
         self.loop = loop
         self.signal = Signal()
         self.controllers = {
             "installpath": InstallPathController(self.ui, self.signal),
+            "singleinstall": SingleInstallController(self.ui, self.signal)
         }
-        # self.install_type = None
-        # self.config.setopt('current_state', InstallState.RUNNING.value)
-        # if not self.config.getopt('headless'):
-        #     if self.config.getopt('openstack_release') == 'icehouse':
-        #         self.ui.set_openstack_rel("Icehouse (2014.1.3)")
-        #     elif self.config.getopt('openstack_release') == 'juno':
-        #         self.ui.set_openstack_rel("Juno (2014.2.2)")
-        #     else:
-        #         self.ui.set_openstack_rel("Kilo (2015.1.0)")
         self._connect_base_signals()
 
     def _connect_base_signals(self):

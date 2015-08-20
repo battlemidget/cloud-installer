@@ -51,5 +51,9 @@ STYLES = [
     ('button_secondary focus', '', '', '',
      Palette.white, Palette.light_orange),
     ('info_minor', '', '', '',
-     Palette.warm_grey, '')
+     Palette.warm_grey, ''),
+    ('error_major', '', '', '',
+     Palette.orange, ''),
+    ('string_input', '', '', '',
+     Palette.white, Palette.warm_grey)
 ]
