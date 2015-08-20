@@ -218,6 +218,7 @@ class SingleInstallAPI:
         """
         Container.create(self.container_name, self.userdata)
 
+        log.debug("Writing containers fstab file")
         with open(os.path.join(self.container_abspath, 'fstab'), 'w') as f:
             f.write("{0} {1} none bind,create=dir\n".format(
                 self.config['settings']['cfg_path'],

@@ -192,6 +192,7 @@ class Container:
         # ubuntu template's image cache and forces a re-download. It
         # should be removed after https://github.com/lxc/lxc/issues/381 is
         # resolved.
+        log.debug("API: Create container: {}, {}".format(name, userdata))
         flushflag = "-F"
         if os.getenv("USE_LXC_IMAGE_CACHE"):
             log.debug("USE_LXC_IMAGE_CACHE set, so not flushing in lxc-create")

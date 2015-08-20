@@ -284,12 +284,11 @@ class SingleInstallController(ControllerPolicy):
         self.sp_view = SingleInstallProgressView(self.model,
                                                  self.signal)
         self.ui.set_body(self.sp_view)
-
-        self.sp_view.set_current_task('ensure_kvm')
         # Process first step
         ensure_nested_kvm_f = self.api.ensure_nested_kvm_async()
-        ensure_nested_kvm_f.add_done_callback(partial(self.wait_for_task,
-                                                      task_name='ensure_kvm'))
+        ensure_nested_kvm_f.add_done_callback(
+            partial(self.wait_for_task,
+                    msg='Ensuring KVM is loaded'))
 
         future_complete_f = Async.pool.submit(
             lambda: wait(ensure_nested_kvm_f, 300))
