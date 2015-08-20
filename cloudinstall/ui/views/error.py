@@ -13,7 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-""" Single Install Progress View
+""" An exception View equipped with traceback,
+log output, and where to file a bug.
 """
 
 import logging
@@ -23,21 +24,18 @@ from cloudinstall.ui.buttons import cancel_btn
 from cloudinstall.ui.utils import Color, Padding
 
 
-log = logging.getLogger("cloudinstall.u.v.i.singleprogress")
+log = logging.getLogger("cloudinstall.u.v.error")
 
 
-class SingleInstallProgressViewException(Exception):
-    "Problem in Single Install Progress View"
+class ErrorViewException(Exception):
+    "Problem in Error  View"
 
 
-class SingleInstallProgressView(ViewPolicy):
+class ErrorView(ViewPolicy):
     def __init__(self, model, signal, tasks):
         self.model = model
         self.signal = signal
-        self.tasks = tasks
-        self.current_task = Text("")
         body = [
-            Padding.center_79(self.current_task),
             Padding.line_break(""),
             Padding.center_20(self._build_buttons())
         ]
@@ -50,21 +48,6 @@ class SingleInstallProgressView(ViewPolicy):
                 focus_map="button_secondary focus")
         ]
         return Pile(buttons)
-
-    def set_current_task(self, task):
-        self.current_task = self.highlight_task_item(task)
-        self.signal.emit_signal('refresh')
-
-    def highlight_task_item(self, task):
-        text = self.tasks[task]
-        return Color.info_major(Text(text))
-
-    def _build_task_list(self):
-        """ Displays the status columns for each task running """
-        rows = []
-        for task in self.tasks.keys():
-            rows.append(Color.info_minor(Text(task)))
-        return Pile(rows)
 
     def cancel(self, button):
         self.signal.emit_signal('quit')

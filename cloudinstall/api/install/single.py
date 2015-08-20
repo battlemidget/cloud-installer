@@ -38,8 +38,8 @@ class SingleInstallAPIException(Exception):
 
 
 class SingleInstallAPI:
-    def __init__(self):
-        self.config = utils.read_ini_existing()
+    def __init__(self, config):
+        self.config = config
         username = utils.install_user()
         self.container_name = 'openstack-single-{}'.format(username)
         self.container_path = '/var/lib/lxc'
@@ -98,27 +98,30 @@ class SingleInstallAPI:
         """
         render_parts = {'extra_sshkeys': [utils.ssh_readkey()]}
 
-        upstream_ppa = self.config['settings']['upstream_ppa']
-        if self.config['settings'].getboolean('use_upstream_ppa'):
-            render_parts['upstream_ppa'] = upstream_ppa
+        use_upstream_ppa = self.config['settings'].getboolean(
+            'use_upstream_ppa')
+        if use_upstream_ppa:
+            ppa = self.config['settings']['upstream_ppa']
+            render_parts['upstream_ppa'] = ppa
 
-        render_parts['seed_command'] = self._proxy_pollinate()
+        render_parts['seed_command'] = self.set_proxy_pollinate()
 
-        render_parts['apt_mirror'] = self.config['settings']['apt_mirror']
+        render_parts['apt_mirror'] = self.config['settings'].get(
+            'apt_mirror', "")
         for opt in self.config['settings.juju'].keys():
             if opt in ['image_metadata_url',
                        'tools_metadata_url']:
-                val = self.config['settings'][opt]
+                val = self.config['settings'].get(opt, None)
                 if val:
                     render_parts[opt] = val
         for opt in self.config['settings.proxy'].keys():
             if opt in ['apt_proxy', 'apt_https_proxy', 'http_proxy',
                        'https_proxy', 'no_proxy']:
-                val = self.config['settings.proxy'][opt]
+                val = self.config['settings.proxy'].get(opt, None)
                 if val:
                     render_parts[opt] = val
 
-        dst_file = os.path.join(self.config.cfg_path,
+        dst_file = os.path.join(self.config['settings']['cfg_path'],
                                 'userdata.yaml')
         original_data = utils.load_template('userdata.yaml')
         log.info("Prepared userdata: {}".format(render_parts))
@@ -217,7 +220,7 @@ class SingleInstallAPI:
 
         with open(os.path.join(self.container_abspath, 'fstab'), 'w') as f:
             f.write("{0} {1} none bind,create=dir\n".format(
-                self.config.cfg_path,
+                self.config['settings']['cfg_path'],
                 'home/ubuntu/.cloud-install'))
             f.write("/var/cache/lxc var/cache/lxc none bind,create=dir\n")
             # Detect additional charm plugins and make available to the
@@ -281,7 +284,7 @@ class SingleInstallAPI:
 
     def copy_upstream_deb(self, upstream_deb):
         """ Copies local upstream debian package into container """
-        shutil.copy(upstream_deb, self.config.cfg_path)
+        shutil.copy(upstream_deb, self.config['settings']['cfg_path'])
 
     def install_upstream_deb_async(self):
         return Async.pool.submit(self.install_upstream_deb)
@@ -312,17 +315,17 @@ class SingleInstallAPI:
         try:
             log.info("Setting permissions for user {}".format(
                 utils.install_user()))
-            utils.chown(self.config.cfg_path,
+            utils.chown(self.config['settings']['cfg_path'],
                         utils.install_user(),
                         utils.install_user(),
                         recursive=True)
             utils.get_command_output("sudo chmod 777 {}".format(
-                self.config.cfg_path))
+                self.config['settings']['cfg_path']))
             utils.get_command_output("sudo chmod 777 -R {}/*".format(
-                self.config.cfg_path))
+                self.config['settings']['cfg_path']))
         except:
             msg = ("Error setting ownership for "
-                   "{}".format(self.config.cfg_path))
+                   "{}".format(self.config['settings']['cfg_path']))
             log.exception(msg)
             raise Exception(msg)
 

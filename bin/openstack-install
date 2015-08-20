@@ -64,13 +64,16 @@ def set_config_defaults(config):
         'pidfile': os.path.join(CFG_DIR, 'openstack.pid'),
         'cfg_path': CFG_DIR,
         'cfg_file': CFG_FILE,
-        'placements_file': os.path.join(CFG_DIR, 'placements.yaml')
+        'placements_file': os.path.join(CFG_DIR, 'placements.yaml'),
+        'install_only': "no",
+        'headless': "no"
     }
     config['settings.juju'] = {
         'path': os.path.join(CFG_DIR, 'juju'),
         'home': os.path.join(CFG_DIR, 'juju'),
         'home_expanded': "~/.cloud-install/juju",
-        'environments_path': os.path.join(CFG_DIR, 'juju', 'environments')
+        'environments_path': os.path.join(CFG_DIR, 'juju', 'environments'),
+        'series': "trusty",
     }
     config['settings.single'] = {
         'container_name': 'openstack-single-{}'.format(utils.install_user())

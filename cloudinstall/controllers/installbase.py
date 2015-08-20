@@ -32,8 +32,12 @@ class InstallController:
         self.loop = loop
         self.signal = Signal()
         self.controllers = {
-            "installpath": InstallPathController(self.ui, self.signal),
-            "singleinstall": SingleInstallController(self.ui, self.signal)
+            "installpath": InstallPathController(self.ui,
+                                                 self.signal,
+                                                 self.config),
+            "singleinstall": SingleInstallController(self.ui,
+                                                     self.signal,
+                                                     self.config)
         }
         self._connect_base_signals()
 
@@ -43,8 +47,8 @@ class InstallController:
         signals = []
 
         # Add quit signal
-        signals.append(('quit', self.loop.exit()))
-        signals.append(('refresh', self.loop.redraw_screen()))
+        signals.append(('quit', self.loop.exit))
+        signals.append(('refresh', self.loop.redraw_screen))
         self.signal.connect_signals(signals)
 
         # Registers signals from each controller

@@ -38,12 +38,12 @@ class SingleInstallControllerException(Exception):
 
 class SingleInstallController(ControllerPolicy):
 
-    def __init__(self, ui, signal):
+    def __init__(self, ui, signal, config):
         self.ui = ui
         self.signal = signal
+        self.config = config
         self.model = SingleInstallModel()
-        self.api = SingleInstallAPI()
-
+        self.api = SingleInstallAPI(self.config)
         self.tasks = {
             'initialize': 'Initializing Environment',
             'ensure_kvm': 'Ensuring KVM is loaded in Container',
@@ -58,9 +58,9 @@ class SingleInstallController(ControllerPolicy):
         """ Start prompting for Single Install information
         """
         # TODO: Add exception view
-        if os.path.exists(self.container_abspath):
-            raise Exception("Container exists, please uninstall or kill "
-                            "existing cloud before proceeding.")
+        # if os.path.exists(self.container_abspath):
+        #     raise Exception("Container exists, please uninstall or kill "
+        #                     "existing cloud before proceeding.")
 
         title = "Single installation"
         excerpt = ("Please fill out the input fields to continue with "
@@ -105,7 +105,7 @@ class SingleInstallController(ControllerPolicy):
     def handle_ssh_genkey(self, future):
         result = future.result()
         log.debug("Future: {}".format(result))
-        self.sp_view.set_current_task(self.tasks['config_set'])
+        self.sp_view.set_current_task('config_set')
         return self._set_apt_proxy()
 
     def _set_apt_proxy(self):
@@ -118,7 +118,7 @@ class SingleInstallController(ControllerPolicy):
         return self._set_charmconfig()
 
     def _set_charmconfig(self):
-        utils.render_charm_config(self.config)
+        utils.render_charm_config()
         return self._set_juju()
 
     def _set_juju(self):
@@ -126,7 +126,7 @@ class SingleInstallController(ControllerPolicy):
         return self._set_perms()
 
     def _set_perms(self):
-        self.sp_view.set_current_task(self.tasks['perms_set'])
+        self.sp_view.set_current_task('perms_set')
         self.api.set_perms()
 
         create_container_f = self.api.create_container_async()
@@ -137,7 +137,7 @@ class SingleInstallController(ControllerPolicy):
         result = future.result()
         log.debug("Future: {}".format(result))
 
-        self.sp_view.set_current_task(self.tasks['initialize_container'])
+        self.sp_view.set_current_task('initialize_container')
         start_container_f = self._start_container()
         start_container_f.add_done_callback(self.handle_start_container)
 
@@ -167,7 +167,7 @@ class SingleInstallController(ControllerPolicy):
         try:
             result = future.result()
             log.debug("Future: {}".format(result))
-            self.sp_view.set_current_task(self.tasks['install_deps'])
+            self.sp_view.set_current_task('install_deps')
 
             copy_host_ssh_f = self.api.copy_host_ssh_to_container_async()
             copy_host_ssh_f.add_done_callback(self.handle_copy_host_ssh)
@@ -234,7 +234,10 @@ class SingleInstallController(ControllerPolicy):
         return self._start_status()
 
     def _start_status(self):
-        self.sp_view.set_current_task(self.tasks['bootstrap'])
+        # Save our config before moving on to dashboard
+        utils.write_ini(self.config)
+
+        self.sp_view.set_current_task('bootstrap')
         cloud_status_bin = ['openstack-status']
         juju_home = self.config['settings.juju']['home_expanded']
         Container.run(self.container_name,
@@ -250,6 +253,10 @@ class SingleInstallController(ControllerPolicy):
     def single_start(self, opts):
         """ Start single install, processing opts
         """
+        self.config['settings']['password'] = opts['password']
+
+        log.info("Password entered, saving {}".format(
+            self.config['settings']['password']))
         log.info("Starting a single installation.")
 
         title = "Single installation progress"
@@ -260,9 +267,9 @@ class SingleInstallController(ControllerPolicy):
         self.sp_view = SingleInstallProgressView(self.model,
                                                  self.signal,
                                                  self.tasks)
-        self.ui.set_body(self.single_progress_view)
+        self.ui.set_body(self.sp_view)
 
-        self.sp_view.set_current_task(self.tasks['ensure_kvm'])
+        self.sp_view.set_current_task('ensure_kvm')
         # Process first step
         ensure_nested_kvm_f = self.api.ensure_nested_kvm_async()
         ensure_nested_kvm_f.add_done_callback(self.handle_nested_kvm)

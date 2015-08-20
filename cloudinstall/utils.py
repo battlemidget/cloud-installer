@@ -131,13 +131,14 @@ def load_charm_byname(name):
     return import_module('cloudinstall.charms.{}'.format(name))
 
 
-def render_charm_config(config):
+def render_charm_config():
     """ Render a config for setting charm config options
 
     If a custom charm config is passed on the cli it will
     attempt to merge those additional settings without losing
     any pre-existing charm options.
     """
+    config = read_ini_existing()
     charm_conf = load_template('charmconf.yaml')
     template_args = dict(
         install_type=config['settings']['install_type'],
@@ -155,7 +156,7 @@ def render_charm_config(config):
 
     template_args['openstack_origin'] = openstack_origin
 
-    if config['settings']['single']:
+    if config['settings']['install_type'] == 'Single':
         template_args['worker_multiplier'] = '1'
 
     # add http proxy settings - should not be necessary as juju sets
@@ -168,7 +169,8 @@ def render_charm_config(config):
     template_args['https_proxy'] = https_proxy
 
     charm_conf_modified = charm_conf.render(**template_args)
-    dest_yaml_path = os.path.join(config.cfg_path, 'charmconf.yaml')
+    dest_yaml_path = os.path.join(config['settings']['cfg_path'],
+                                  'charmconf.yaml')
     spew(dest_yaml_path, charm_conf_modified)
 
     # Check for custom charm options

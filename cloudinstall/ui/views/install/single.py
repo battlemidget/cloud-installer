@@ -14,23 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """ Single Install View
-
-Diagram:
-
-Ubuntu OpenStack Installer - Single Install
-
-                  Performing Single Install...
-
-[## Initializing Env ##][Creating Container][Initializing Container]
-
-[#### Progress 20%                                                 ]
-
------------------------------ Output -------------------------------
-
-Console logging...
-etc etc...
-
-
 """
 
 import logging

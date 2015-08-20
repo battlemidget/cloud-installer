@@ -30,10 +30,11 @@ class InstallPathControllerException(Exception):
 class InstallPathController(ControllerPolicy):
     """ Presents user with install selection type
     """
-    def __init__(self, ui, signal):
+    def __init__(self, ui, signal, config):
         self.ui = ui
         self.signal = signal
         self.model = InstallPathModel()
+        self.config = config
 
     def install(self):
         """ load install path view """
@@ -46,7 +47,8 @@ class InstallPathController(ControllerPolicy):
 
     def set_install_type(self, result):
         """ Stores install selection type and writes config """
-        config = utils.read_ini_existing()
-        config['settings']['install_type'] = result
+        self.config['settings']['install_type'] = result
         log.debug("Set install type {} in config".format(result))
-        utils.write_ini(config)
+        utils.write_ini(self.config)
+        log.info("Install type selected {}, saving.".format(
+            self.config['settings']['install_type']))
