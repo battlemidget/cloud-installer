@@ -32,11 +32,14 @@ class ErrorViewException(Exception):
 
 
 class ErrorView(ViewPolicy):
-    def __init__(self, model, signal, tasks):
+    def __init__(self, model, signal, error):
         self.model = model
         self.signal = signal
+        self.error = error
         body = [
+            Text("Oops, there was a problem with your install"),
             Padding.line_break(""),
+            Padding.center_79(Color.error_major(Text(self.error))),
             Padding.center_20(self._build_buttons())
         ]
         super().__init__(ListBox(body))

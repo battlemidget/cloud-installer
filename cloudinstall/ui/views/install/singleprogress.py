@@ -17,7 +17,7 @@
 """
 
 import logging
-from urwid import (Pile, Text, ListBox)
+from urwid import (Pile, Text, ListBox, Columns)
 from cloudinstall.view import ViewPolicy
 from cloudinstall.ui.buttons import cancel_btn
 from cloudinstall.ui.utils import Color, Padding
@@ -31,40 +31,21 @@ class SingleInstallProgressViewException(Exception):
 
 
 class SingleInstallProgressView(ViewPolicy):
-    def __init__(self, model, signal, tasks):
+    def __init__(self, model, signal):
         self.model = model
         self.signal = signal
-        self.tasks = tasks
         self.current_task = Text("")
         body = [
-            Padding.center_79(self.current_task),
-            Padding.line_break(""),
-            Padding.center_20(self._build_buttons())
+            Padding.center_79(Columns([
+                ("weight", 0.5, Text("Progress:")),
+                self.current_task
+            ], dividechars=5)),
         ]
         super().__init__(ListBox(body))
 
-    def _build_buttons(self):
-        buttons = [
-            Color.button_secondary(
-                cancel_btn(on_press=self.cancel),
-                focus_map="button_secondary focus")
-        ]
-        return Pile(buttons)
-
     def set_current_task(self, task):
-        self.current_task = self.highlight_task_item(task)
+        self.current_task.set_text(task)
         self.signal.emit_signal('refresh')
 
     def highlight_task_item(self, task):
-        text = self.tasks[task]
-        return Color.info_major(Text(text))
-
-    def _build_task_list(self):
-        """ Displays the status columns for each task running """
-        rows = []
-        for task in self.tasks.keys():
-            rows.append(Color.info_minor(Text(task)))
-        return Pile(rows)
-
-    def cancel(self, button):
-        self.signal.emit_signal('quit')
+        return Color.info_major(Text(task))

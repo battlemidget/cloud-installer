@@ -131,6 +131,10 @@ def load_charm_byname(name):
     return import_module('cloudinstall.charms.{}'.format(name))
 
 
+def render_charm_config_async():
+    return Async.pool.submit(render_charm_config)
+
+
 def render_charm_config():
     """ Render a config for setting charm config options
 

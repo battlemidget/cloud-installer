@@ -225,7 +225,8 @@ class SingleInstallAPI:
             f.write("/var/cache/lxc var/cache/lxc none bind,create=dir\n")
             # Detect additional charm plugins and make available to the
             # container.
-            charm_plugin_dir = self.config['settings.charms']['plugin_path']
+            charm_plugin_dir = self.config['settings.charms'].get(
+                'plugin_path', False)
             if charm_plugin_dir \
                and self.config['settings']['cfg_path'] in charm_plugin_dir:
                 plug_dir = os.path.abspath(charm_plugin_dir)
