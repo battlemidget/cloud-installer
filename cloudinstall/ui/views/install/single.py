@@ -110,14 +110,3 @@ class SingleInstallView(ViewPolicy):
 
     def cancel(self, button):
         self.signal.emit_signal(self.model.get_previous_signal)
-
-    # def _build_status_indicators(self):
-    #     """ Displays the status columns for each task running """
-    #     col = [
-    #         ("weight", 0.2, Color.body(Text("Initializing Environment"))),
-    #         ("weight", 0.2, Color.body(Text("Creating Container"))),
-    #         ("weight", 0.2, Color.body(Text("Initializing Container"))),
-    #         ("weight", 0.2, Color.body(Text("Installing Dependencies"))),
-    #         ("weight", 0.2, Color.body(Text("Bootstrapping Juju")))
-    #     ]
-    #     return Columns(col)

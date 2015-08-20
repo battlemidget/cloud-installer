@@ -15,8 +15,6 @@
 
 from subprocess import (Popen, PIPE, call,
                         check_call, DEVNULL, CalledProcessError)
-from contextlib import contextmanager
-from collections import ChainMap
 try:
     from collections import Mapping
 except ImportError:
@@ -29,12 +27,8 @@ import string
 import random
 import fnmatch
 import logging
-import traceback
-import urwid
 import itertools
 import configparser
-from threading import Thread
-from functools import wraps
 import time
 from importlib import import_module
 import pkgutil
@@ -44,6 +38,7 @@ import shutil
 import json
 import yaml
 import requests
+from cloudinstall.async import Async
 
 log = logging.getLogger('cloudinstall.utils')
 
@@ -53,9 +48,6 @@ class UtilsException(Exception):
 
 
 def cleanup(cfg):
-    # Save latest config object
-    log.info("Cleanup, saving latest config object.")
-    cfg.save()
     pid = os.path.join(install_home(), '.cloud-install/openstack.pid')
     if os.path.isfile(pid):
         os.remove(pid)
@@ -214,18 +206,6 @@ def chown(path, user, group=None, recursive=False):
                     shutil.chown(os.path.join(root, item), user, group)
     except OSError as e:
         raise UtilsException(e)
-
-
-def async(func):
-    """
-    Decorator for executing a function in a separate thread.
-    """
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        thread = ExceptionLoggingThread(target=func, args=args, kwargs=kwargs)
-        thread.daemon = True
-        return thread.start()
-    return wrapper
 
 
 def ensure_locale():
@@ -519,6 +499,10 @@ def ssh_readkey():
         return f.read()
 
 
+def ssh_genkey_async():
+    return Async.pool.submit(ssh_genkey)
+
+
 def ssh_genkey():
     """ Generates sshkey
     """
@@ -557,6 +541,12 @@ def read_ini(path):
     config = configparser.ConfigParser()
     config.read(path)
     return config
+
+
+def write_ini(config):
+    path = os.path.join(install_home(), '.cloud-install/config.conf')
+    with open(path, 'w') as config_w:
+        config.write(config_w)
 
 
 def read_ini_existing():
@@ -662,3 +652,47 @@ def download_url(url, output_file):
     else:
         raise UtilsException("Exception downloading {}:{}".format(
             url, res.content))
+
+
+def update_environments_yaml(config, key, val, provider='local'):
+    """ updates environments.yaml base file """
+    env_path = config['settings.juju']['environments_path']
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            _env_yaml_raw = f.read()
+            env_yaml = yaml.load(_env_yaml_raw)
+    else:
+        raise UtilsException(
+            "{} unavailable, is juju bootstrapped?".format(
+                env_path))
+    if key in env_yaml['environments'][provider]:
+        env_yaml['environments'][provider][key] = val
+    with open(env_path, 'w') as f:
+        _env_yaml_raw = yaml.safe_dump(env_yaml, default_flow_style=False)
+        f.write(_env_yaml_raw)
+
+
+def juju_env(config):
+    """ parses current juju environment """
+    env_file = None
+    settings = config['settings']
+    juju_path = config['settings.juju']['path']
+    if "Single" in settings['install_type']:
+        env_file = 'local.jenv'
+
+    if "Multi" in settings['install_type'] or \
+       "Landscape" in settings['install_type']:
+        env_file = 'maas.jenv'
+
+    if env_file:
+        env_path = os.path.join(juju_path, 'environments', env_file)
+    else:
+        raise UtilsException('Unable to determine installer type.')
+
+    log.debug("Querying juju env in {}".format(env_path))
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            return yaml.load(f.read().strip())
+
+    raise UtilsException('Unable to load environments file. Is '
+                         'juju bootstrapped?')

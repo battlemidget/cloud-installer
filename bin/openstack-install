@@ -124,6 +124,7 @@ if __name__ == '__main__':
         utils.chown(CFG_DIR, utils.install_user())
         config = utils.read_ini('/usr/share/openstack/config.conf')
         config = set_config_defaults(config)
+        utils.write_ini(config)
         with open(CFG_FILE, 'w') as config_w:
             config.write(config_w)
     elif os.path.isfile(CFG_FILE) and not opts.advanced_config:
@@ -138,6 +139,11 @@ if __name__ == '__main__':
         sys.exit(1)
     else:
         config = utils.read_ini_existing()
+
+    if opts.advanced_config:
+        config['runtime'] = {}
+        config['runtime']['advanced_config'] = "yes"
+        utils.write_ini(config)
 
     try:
         setup_logger()
@@ -183,14 +189,6 @@ if __name__ == '__main__':
         sys.exit(1)
 
     ui = OpenstackInstallUI()
-
-    # # Set proxy
-    # if cfg.getopt('http_proxy'):
-    #     os.environ['HTTP_PROXY'] = cfg.getopt('http_proxy')
-    #     os.environ['http_proxy'] = cfg.getopt('http_proxy')
-    # if cfg.getopt('https_proxy'):
-    #     os.environ['HTTPS_PROXY'] = cfg.getopt('https_proxy')
-    #     os.environ['https_proxy'] = cfg.getopt('https_proxy')
 
     # Choose event loop
     ev = EventLoop(ui, config, log)

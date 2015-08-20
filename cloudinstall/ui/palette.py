@@ -52,6 +52,8 @@ STYLES = [
      Palette.white, Palette.light_orange),
     ('info_minor', '', '', '',
      Palette.warm_grey, ''),
+    ('info_major', '', '', '',
+     Palette.light_orange, ''),
     ('error_major', '', '', '',
      Palette.orange, ''),
     ('string_input', '', '', '',

@@ -28,7 +28,10 @@ class InstallPathModel(ModelPolicy):
     signals = [
         ("Install path view",
          'installpath:show',
-         'install')
+         'install'),
+        ("Set install type",
+         'installpath:set-install-type',
+         'set_install_type')
     ]
 
     install_descriptions = {

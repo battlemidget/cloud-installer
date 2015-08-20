@@ -1,5 +1,4 @@
-#
-# Copyright 2014 Canonical, Ltd.
+# Copyright 2014, 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -14,11 +13,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-
-# from cloudinstall.state import ControllerState
-# import cloudinstall.utils as utils
-# import sys
-# import threading
 from cloudinstall.ui.palette import STYLES
 import logging
 import urwid
@@ -28,7 +22,7 @@ log = logging.getLogger('cloudinstall.ev')
 
 class EventLoop:
 
-    """ Abstracts out event loops in different scenarios
+    """ Abstracts out event loop
     """
 
     def __init__(self, ui, config, log):
@@ -36,53 +30,19 @@ class EventLoop:
         self.config = config
         self.log = log
         self.error_code = 0
-        # self._callback_map = {}
         self.loop = self._build_loop()
-
-        # if not self.config.getopt('headless'):
-        #     self.loop = self._build_loop()
-        #     self.loop.set_alarm_in(2, self.check_thread_exit_event)
-        #     self._loop_thread = threading.current_thread()
-        #     self._thread_exit_event = threading.Event()
-
-    # def register_callback(self, key, val):
-    #     """ Registers some additional callbacks that didn't make sense
-    #     to be added as part of its initial creation
-
-    #     TODO: Doubt this is the best way as its more of a band-aid
-    #     to core.py/add_charm and hotkeys in the gui.
-    #     """
-    #     self._callback_map[key] = val
 
     def header_hotkeys(self, key):
         if key in ['q', 'Q']:
             self.exit(0)
 
-    # def exit(self, err=0):
-    #     self.error_code = err
-    #     self.log.info("Stopping eventloop")
-    #     if self.config.getopt('headless'):
-    #         sys.exit(err)
-
-    #     if threading.current_thread() == self._loop_thread:
-    #         raise urwid.ExitMainLoop()
-    #     else:
-    #         self._thread_exit_event.set()
-    #         log.debug("{} exiting, deferred UI exit "
-    #                   "to main thread.".format(
-    #                       threading.current_thread().name))
-
     def exit(self):
         raise urwid.ExitMainLoop()
-
-    # def check_thread_exit_event(self, *args, **kwargs):
-    #     if self._thread_exit_event.is_set():
-    #         raise urwid.ExitMainLoop()
-    #     self.loop.set_alarm_in(2, self.check_thread_exit_event)
 
     def redraw_screen(self):
         try:
             self.loop.draw_screen()
+            log.debug("Screen was redrawn.")
         except AssertionError as e:
             self.log.exception("exception failure in redraw_screen")
             raise e

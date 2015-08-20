@@ -13,19 +13,28 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-""" API for single install routines """
+""" API for single install routines
+
+Exposes both synchronous and asynchronous routines via futures
+"""
 
 from ipaddress import IPv4Network
-import time
 import shutil
 from subprocess import call, check_call, check_output, STDOUT
 import os
+import json
 import logging
 from cloudinstall import utils, netutils
+from cloudinstall.async import Async
 from cloudinstall.api.container import (Container,
-                                        ContainerRunException)
+                                        ContainerRunException,
+                                        NoContainerIPException)
 
 log = logging.getLogger("cloudinstall.a.i.single")
+
+
+class SingleInstallAPIException(Exception):
+    pass
 
 
 class SingleInstallAPI:
@@ -39,28 +48,39 @@ class SingleInstallAPI:
         self.userdata = os.path.join(
             self.config['settings']['cfg_path'], 'userdata.yaml')
 
-        # Sets install type
-        self.config.setopt('install_type', 'Single')
+    def set_apt_proxy_async(self):
+        return Async.pool.submit(self.set_apt_proxy)
 
     def set_apt_proxy(self):
         "Use http_proxy unless apt_http_proxy is explicitly set"
-        apt_proxy = self.config.getopt('apt_proxy')
-        http_proxy = self.config.getopt('http_proxy')
+        proxy = self.config['settings.proxy']
+        apt_proxy = proxy['apt_proxy']
+        http_proxy = proxy['http_proxy']
         if not apt_proxy and http_proxy:
-            self.config.setopt('apt_proxy', http_proxy)
+            proxy['apt_proxy'] = http_proxy
+            utils.write.ini(self.config)
+
+    def set_apts_proxy_async(self):
+        return Async.pool.submit(self.set_apts_proxy)
 
     def set_apts_proxy(self):
         "Use https_proxy unless apt_https_proxy is explicitly set"
-        apt_https_proxy = self.config.getopt('apt_https_proxy')
-        https_proxy = self.config.getopt('https_proxy')
+        proxy = self.config['settings.proxy']
+        apt_https_proxy = proxy['apt_https_proxy']
+        https_proxy = proxy['https_proxy']
         if not apt_https_proxy and https_proxy:
-            self.config.setopt('apt_https_proxy', https_proxy)
+            proxy['apt_https_proxy'] = https_proxy
+            utils.write_ini(self.config)
+
+    def set_proxy_pollinate_async(self):
+        return Async.pool.submit(self.set_proxy_polliante)
 
     def set_proxy_pollinate(self):
         """ Proxy pollinate if http/s proxy is set """
         # pass proxy through to pollinate
-        http_proxy = self.config.getopt('http_proxy')
-        https_proxy = self.config.getopt('https_proxy')
+        proxy = self.config['settings.proxy']
+        http_proxy = proxy['http_proxy']
+        https_proxy = proxy['https_proxy']
         log.debug('Found proxy info: {}/{}'.format(http_proxy, https_proxy))
         pollinate = ['env']
         if http_proxy:
@@ -70,23 +90,33 @@ class SingleInstallAPI:
         pollinate.extend(['pollinate', '-q'])
         return pollinate
 
+    def set_userdata_async(self):
+        return Async.pool.submit(self.set_userdata)
+
     def set_userdata(self):
         """ set userdata file for container install
         """
         render_parts = {'extra_sshkeys': [utils.ssh_readkey()]}
 
-        if self.config.getopt('upstream_ppa'):
-            render_parts['upstream_ppa'] = self.config.getopt('upstream_ppa')
+        upstream_ppa = self.config['settings']['upstream_ppa']
+        if self.config['settings'].getboolean('use_upstream_ppa'):
+            render_parts['upstream_ppa'] = upstream_ppa
 
         render_parts['seed_command'] = self._proxy_pollinate()
 
-        for opt in ['apt_proxy', 'apt_https_proxy', 'http_proxy',
-                    'https_proxy', 'no_proxy',
-                    'image_metadata_url', 'tools_metadata_url',
-                    'apt_mirror']:
-            val = self.config.getopt(opt)
-            if val:
-                render_parts[opt] = val
+        render_parts['apt_mirror'] = self.config['settings']['apt_mirror']
+        for opt in self.config['settings.juju'].keys():
+            if opt in ['image_metadata_url',
+                       'tools_metadata_url']:
+                val = self.config['settings'][opt]
+                if val:
+                    render_parts[opt] = val
+        for opt in self.config['settings.proxy'].keys():
+            if opt in ['apt_proxy', 'apt_https_proxy', 'http_proxy',
+                       'https_proxy', 'no_proxy']:
+                val = self.config['settings.proxy'][opt]
+                if val:
+                    render_parts[opt] = val
 
         dst_file = os.path.join(self.config.cfg_path,
                                 'userdata.yaml')
@@ -95,27 +125,40 @@ class SingleInstallAPI:
         modified_data = original_data.render(render_parts)
         utils.spew(dst_file, modified_data)
 
+    def set_juju_async(self):
+        return Async.pool.submit(self.set_juju)
+
     def set_juju(self):
         """ set juju environments for bootstrap
         """
         render_parts = {'openstack_password':
-                        self.config.getopt('openstack_password'),
+                        self.config['settings']['password'],
                         'ubuntu_series':
-                        self.config.getopt('ubuntu_series')}
+                        self.config['settings.juju']['series']}
 
         for opt in ['apt_proxy', 'apt_https_proxy', 'http_proxy',
                     'https_proxy']:
-            val = self.config.getopt(opt)
+            val = self.config['settings.proxy'][opt]
             if val:
                 render_parts[opt] = val
 
         # configure juju environment for bootstrap
         single_env = utils.load_template('juju-env/single.yaml')
         single_env_modified = single_env.render(render_parts)
-        utils.spew(os.path.join(self.config.juju_path(),
-                                'environments.yaml'),
+        utils.spew(self.config['settings.juju']['environments_path'],
                    single_env_modified,
                    owner=utils.install_user())
+
+    def copy_host_ssh_to_container_async(self):
+        return Async.pool.submit(self.copy_host_ssh_to_container)
+
+    def copy_host_ssh_to_container(self):
+        Container.cp(self.container_name,
+                     os.path.join(utils.install_home(), '.ssh/id_rsa*'),
+                     '.ssh/.')
+
+    def set_lxc_net_config_async(self):
+        return Async.pool.submit(self.set_lxc_net_config)
 
     def set_lxc_net_config(self):
         """Finds and configures a new subnet for the host container,
@@ -126,7 +169,8 @@ class SingleInstallAPI:
                                                   'rootfs/etc/default/lxc-net')
 
         network = netutils.get_unique_lxc_network()
-        self.config.setopt('lxc_network', network)
+        self.config['settings.single']['lxc_network'] = network
+        utils.write_ini(self.config)
 
         nw = IPv4Network(network)
         addr = nw[1]
@@ -144,12 +188,15 @@ class SingleInstallAPI:
 
         return network
 
+    def set_static_route_async(self, lxc_net):
+        return Async.pool.submit(self.set_static_route, lxc_net)
+
     def set_static_route(self, lxc_net):
         """ Adds static route to host system
         """
         # Store container IP in config
         ip = Container.ip(self.container_name)
-        self.config.setopt('container_ip', ip)
+        self.config['settings.single']['container_ip'] = ip
 
         log.info("Adding static route for {} via {}".format(lxc_net,
                                                             ip))
@@ -159,6 +206,9 @@ class SingleInstallAPI:
         if out['status'] != 0:
             raise Exception("Could not add static route for {}"
                             " network: {}".format(lxc_net, out['output']))
+
+    def create_container_async(self):
+        return Async.pool.submit(self.create_container)
 
     def create_container(self):
         """ Creates container
@@ -172,11 +222,10 @@ class SingleInstallAPI:
             f.write("/var/cache/lxc var/cache/lxc none bind,create=dir\n")
             # Detect additional charm plugins and make available to the
             # container.
-            charm_plugin_dir = self.config.getopt('charm_plugin_dir')
+            charm_plugin_dir = self.config['settings.charms']['plugin_path']
             if charm_plugin_dir \
-               and self.config.cfg_path not in charm_plugin_dir:
-                plug_dir = os.path.abspath(
-                    self.config.getopt('charm_plugin_dir'))
+               and self.config['settings']['cfg_path'] in charm_plugin_dir:
+                plug_dir = os.path.abspath(charm_plugin_dir)
                 plug_base = os.path.basename(plug_dir)
                 f.write("{d} home/ubuntu/{m} "
                         "none bind,create=dir\n".format(d=plug_dir,
@@ -197,25 +246,20 @@ class SingleInstallAPI:
                     "lxc.start.delay = 5\n"
                     "lxc.mount = {}/fstab\n".format(self.container_abspath))
 
+    def start_container_async(self, lxc_logfile):
+        return Async.pool.submit(self.start_container, lxc_logfile)
+
     def start_container(self, lxc_logfile):
         Container.start(self.container_name, lxc_logfile)
-
-        # Container.wait_checked(self.container_name,
-        #                        lxc_logfile)
-
-        # tries = 0
-        # while not self.cloud_init_finished(tries):
-        #     time.sleep(1)
-        #     tries += 1
 
         # we do this here instead of using cloud-init, for greater
         # control over ordering
         log.debug("Container started, cloud-init done.")
 
-        # lxc_network = self.set_lxc_net_config()
-        # self.set_static_route(lxc_network)
+    def install_dependencies_async(self):
+        return Async.pool.submit(self.install_dependencies)
 
-    def install_dependencies(self, cb):
+    def install_dependencies(self):
         """ Install dependencies inside the container
 
         :params cb: Set a callback function
@@ -227,19 +271,25 @@ class SingleInstallAPI:
                           "env DEBIAN_FRONTEND=noninteractive apt-get -qy "
                           "-o Dpkg::Options::=--force-confdef "
                           "-o Dpkg::Options::=--force-confold "
-                          "install openstack openstack-single ",
-                          output_cb=cb)
+                          "install openstack openstack-single ")
         except Exception:
             raise ContainerRunException(
                 "Unable to install dependencies in container")
+
+    def copy_upstream_deb_async(self, upstream_deb):
+        return Async.pool.submit(self.copy_upstream_deb)
 
     def copy_upstream_deb(self, upstream_deb):
         """ Copies local upstream debian package into container """
         shutil.copy(upstream_deb, self.config.cfg_path)
 
+    def install_upstream_deb_async(self):
+        return Async.pool.submit(self.install_upstream_deb)
+
     def install_upstream_deb(self):
         log.info('Found upstream deb, installing that instead')
-        filename = os.path.basename(self.config.getopt('upstream_deb'))
+        filename = os.path.basename(
+            self.config['settings.single']['upstream_deb_path'])
         try:
             Container.run(
                 self.container_name,
@@ -252,6 +302,9 @@ class SingleInstallAPI:
             Container.run(
                 self.container_name, 'apt-get install -qyf',
                 output_cb=self.set_progress_output)
+
+    def set_perms_async(self):
+        return Async.pool.submit(self.set_perms)
 
     def set_perms(self):
         """ sets permissions
@@ -272,6 +325,9 @@ class SingleInstallAPI:
                    "{}".format(self.config.cfg_path))
             log.exception(msg)
             raise Exception(msg)
+
+    def ensure_nested_kvm_async(self):
+        return Async.pool.submit(self.ensure_nested_kvm)
 
     def ensure_nested_kvm(self):
         """kvm_intel module defaults to nested OFF. If qemu_system_x86 is not
@@ -311,3 +367,67 @@ class SingleInstallAPI:
             raise Exception("Could not automatically reload kvm_intel kernel"
                             "module to enable nested VMs. A manual reboot or "
                             "reload will be required.")
+
+    def cloud_init_finished_async(self, tries, maxlenient=20):
+        return Async.pool.submit(self.cloud_init_finished, tries, maxlenient)
+
+    def cloud_init_finished(self, tries, maxlenient=20):
+        """checks cloud-init result.json in container to find out status
+
+        For the first `maxlenient` tries, it treats a container with
+        no IP and SSH errors as non-fatal, assuming initialization is
+        still ongoing. Afterwards, will raise exceptions for those
+        errors, so as not to loop forever.
+
+        returns True if cloud-init finished with no errors, False if
+        it's not done yet, and raises an exception if it had errors.
+
+        """
+        cmd = 'sudo cat /run/cloud-init/result.json'
+        try:
+            result_json = Container.run(self.container_name, cmd)
+
+        except NoContainerIPException as e:
+            log.debug("Container has no IPs according to lxc-info. "
+                      "Will retry.")
+            return False
+
+        except ContainerRunException as e:
+            _, returncode = e.args
+            if returncode == 255:
+                if tries < maxlenient:
+                    log.debug("Ignoring initial SSH error.")
+                    return False
+                raise e
+            if returncode == 1:
+                # the 'cat' did not find the file.
+                if tries < 1:
+                    log.debug("Waiting for cloud-init status result")
+                return False
+            else:
+                log.debug("Unexpected return code from reading "
+                          "cloud-init status in container.")
+                raise e
+
+        if result_json == '':
+            return False
+
+        try:
+            ret = json.loads(result_json)
+        except Exception as e:
+            if tries < maxlenient + 10:
+                log.debug("exception trying to parse '{}'"
+                          " - retrying".format(result_json))
+                return False
+
+            log.error(str(e))
+            log.debug("exception trying to parse '{}'".format(result_json))
+            raise e
+
+        errors = ret['v1']['errors']
+        if len(errors):
+            log.error("Container cloud-init finished with "
+                      "errors: {}".format(errors))
+            raise Exception("Top-level container OS did not initialize "
+                            "correctly.")
+        return True

@@ -85,6 +85,7 @@ class InstallPathView(ViewPolicy):
 
     def confirm(self, result):
         name = result.label
+        self.signal.emit_signal("installpath:set-install-type", name)
         if "Single" in name:
             self.signal.emit_signal("install:single")
         if "Multi" in name:

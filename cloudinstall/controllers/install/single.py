@@ -17,16 +17,16 @@
 
 import logging
 import os
-import json
+import time
+from subprocess import check_output, STDOUT
 
 from cloudinstall import utils, netutils
-from cloudinstall.api.container import (Container,
-                                        NoContainerIPException,
-                                        ContainerRunException)
+from cloudinstall.api.container import Container
 from cloudinstall.controller import ControllerPolicy
 from cloudinstall.models import SingleInstallModel
 from cloudinstall.api.install import SingleInstallAPI
-from cloudinstall.ui.views.install import SingleInstallView
+from cloudinstall.ui.views.install import (SingleInstallView,
+                                           SingleInstallProgressView)
 
 
 log = logging.getLogger('cloudinstall.c.i.single')
@@ -42,11 +42,26 @@ class SingleInstallController(ControllerPolicy):
         self.ui = ui
         self.signal = signal
         self.model = SingleInstallModel()
-        # self.api = SingleInstallAPI()
+        self.api = SingleInstallAPI()
+
+        self.tasks = {
+            'initialize': 'Initializing Environment',
+            'ensure_kvm': 'Ensuring KVM is loaded in Container',
+            'config_set': 'Determining configuration and setting variables',
+            'perms_set': 'Setting permissions',
+            'initialize_container': 'Creating Container',
+            'install_deps': 'Installing Dependencies',
+            'bootstrap': 'Bootstrapping Juju'
+        }
 
     def single(self):
         """ Start prompting for Single Install information
         """
+        # TODO: Add exception view
+        if os.path.exists(self.container_abspath):
+            raise Exception("Container exists, please uninstall or kill "
+                            "existing cloud before proceeding.")
+
         title = "Single installation"
         excerpt = ("Please fill out the input fields to continue with "
                    "the single installation.")
@@ -54,188 +69,200 @@ class SingleInstallController(ControllerPolicy):
         self.ui.set_body(SingleInstallView(self.model,
                                            self.signal))
 
+    def _read_container_status(self):
+        return check_output("lxc-info -n {} -s "
+                            "|| true".format(self.container_name),
+                            shell=True, stderr=STDOUT).decode('utf-8')
+
+    def _read_cloud_init_output(self):
+        try:
+            s = Container.run(self.container_name, 'tail -n 10 '
+                              '/var/log/cloud-init-output.log')
+            return s.replace('\r', '')
+        except Exception:
+            return "Waiting..."
+
+    def _read_juju_log(self):
+        try:
+            return Container.run(self.container_name, 'tail -n 10 '
+                                 '/var/log/juju-ubuntu-local'
+                                 '/all-machines.log')
+        except Exception:
+            return "Waiting..."
+
+    def handle_nested_kvm(self, future):
+        try:
+            result = future.result()
+            log.debug("Future: {}".format(result))
+
+            set_ssh_key_f = utils.ssh_genkey_async()
+            set_ssh_key_f.add_done_callback(self.handle_ssh_genkey)
+        except Exception as e:
+            # TODO: show exception view
+            log.exception(e)
+            raise Exception(e)
+
+    def handle_ssh_genkey(self, future):
+        result = future.result()
+        log.debug("Future: {}".format(result))
+        self.sp_view.set_current_task(self.tasks['config_set'])
+        return self._set_apt_proxy()
+
+    def _set_apt_proxy(self):
+        self.api.set_apt_proxy()
+        self.api.set_apts_proxy()
+        return self._set_userdata()
+
+    def _set_userdata(self):
+        self.api.set_userdata()
+        return self._set_charmconfig()
+
+    def _set_charmconfig(self):
+        utils.render_charm_config(self.config)
+        return self._set_juju()
+
+    def _set_juju(self):
+        self.api.set_juju()
+        return self._set_perms()
+
+    def _set_perms(self):
+        self.sp_view.set_current_task(self.tasks['perms_set'])
+        self.api.set_perms()
+
+        create_container_f = self.api.create_container_async()
+        create_container_f.add_done_callback(self.handle_create_container)
+        return
+
+    def handle_create_container(self, future):
+        result = future.result()
+        log.debug("Future: {}".format(result))
+
+        self.sp_view.set_current_task(self.tasks['initialize_container'])
+        start_container_f = self._start_container()
+        start_container_f.add_done_callback(self.handle_start_container)
+
+    def _start_container(self):
+        lxc_logfile = os.path.join(self.config.cfg_path, 'lxc.log')
+        self.api.start_container(lxc_logfile)
+        Container.wait_checked(self.container_name, lxc_logfile)
+        tries = 0
+        while not self.cloud_init_finished(tries):
+            time.sleep(1)
+            tries += 1
+        return
+
+    def handle_start_container(self, future):
+        result = future.result()
+        log.debug("Future: {}".format(result))
+        return self._set_lxc_network()
+
+    def _set_lxc_network(self):
+        lxc_network = self.api.set_lxc_net_config()
+        self.api.set_static_route(lxc_network)
+
+        install_deps_f = self.api.install_dependencies_async()
+        install_deps_f.add_done_callback(self.handle_install_dependencies)
+
+    def handle_install_dependencies(self, future):
+        try:
+            result = future.result()
+            log.debug("Future: {}".format(result))
+            self.sp_view.set_current_task(self.tasks['install_deps'])
+
+            copy_host_ssh_f = self.api.copy_host_ssh_to_container_async()
+            copy_host_ssh_f.add_done_callback(self.handle_copy_host_ssh)
+        except Exception as e:
+            raise e
+
+    def handle_copy_host_ssh(self, future):
+        try:
+            result = future.result()
+            log.debug("Future: {}".format(result))
+
+            upstream_deb = self.config['settings.single']['upstream_deb_path']
+            if upstream_deb:
+                copy_upstream_deb_f = self.api.copy_upstream_deb_async()
+                copy_upstream_deb_f.add_done_callback(
+                    self.handle_copy_upstream_deb)
+
+            # Close out loop if install only
+            if self.config['settings']['install_only']:
+                log.info("Done installing, stopping here per --install-only.")
+                self.config['settings']['install_only'] = "yes"
+                utils.write_ini(self.config)
+                self.signal.emit_signal('quit')
+        except Exception as e:
+            raise e
+
+    def handle_copy_upstream_deb(self, future):
+        try:
+            result = future.result()
+            log.debug("Future: {}".format(result))
+
+            install_upstream_deb_f = self.api.install_upstream_deb_async()
+            install_upstream_deb_f.add_done_callback(
+                self.handle_install_upstream_deb)
+        except Exception as e:
+            raise e
+
+    def handle_install_upstream_deb(self, future):
+        try:
+            result = future.result()
+            log.debug("Future: {}".format(result))
+            # Close out loop if install only
+            # FIXME: repeatative from copy_host_ssh
+            if self.config['settings']['install_only']:
+                log.info("Done installing, stopping here per --install-only.")
+                self.config['settings']['install_only'] = "yes"
+                utils.write_ini(self.config)
+                self.signal.emit_signal('quit')
+            return self._set_juju_proxy()
+        except Exception as e:
+            raise e
+
+    def _set_juju_proxy(self):
+        #  Update jujus no-proxy setting if applicable
+        proxy = self.config['settings.proxy']
+        if proxy['http_proxy'] or proxy['https_proxy']:
+            log.info("Updating juju environments for proxy support")
+            lxc_net = self.config['settings.single']['lxc_network']
+            utils.update_environments_yaml(
+                key='no-proxy',
+                val='{},localhost,{}'.format(
+                    Container.ip(self.container_name),
+                    netutils.get_ip_set(lxc_net)))
+        return self._start_status()
+
+    def _start_status(self):
+        self.sp_view.set_current_task(self.tasks['bootstrap'])
+        cloud_status_bin = ['openstack-status']
+        juju_home = self.config['settings.juju']['home_expanded']
+        Container.run(self.container_name,
+                      "{0} juju --debug bootstrap".format(juju_home),
+                      use_ssh=True)
+        Container.run(
+            self.container_name,
+            "{0} juju status".format(juju_home),
+            use_ssh=True)
+        Container.run_status(
+            self.container_name, " ".join(cloud_status_bin), self.config)
+
     def single_start(self, opts):
         """ Start single install, processing opts
         """
         log.info("Starting a single installation.")
-        raise SystemExit("Single_start")
 
-    # def read_container_status(self):
-    #     return check_output("lxc-info -n {} -s "
-    #                         "|| true".format(self.container_name),
-    #                         shell=True, stderr=STDOUT).decode('utf-8')
+        title = "Single installation progress"
+        excerpt = ("Currently installing OpenStack via Single Installation "
+                   "method. Press (Q) or CTRL-C to quit "
+                   "installation.")
+        self.ui.set_header(title, excerpt)
+        self.sp_view = SingleInstallProgressView(self.model,
+                                                 self.signal,
+                                                 self.tasks)
+        self.ui.set_body(self.single_progress_view)
 
-    # def read_cloud_init_output(self):
-    #     try:
-    #         s = Container.run(self.container_name, 'tail -n 10 '
-    #                           '/var/log/cloud-init-output.log')
-    #         return s.replace('\r', '')
-    #     except Exception:
-    #         return "Waiting..."
-
-    # def set_progress_output(self, output):
-    #     self.progress_output = output
-
-    # def read_progress_output(self):
-    #     return self.progress_output
-
-    # def read_juju_log(self):
-    #     try:
-    #         return Container.run(self.container_name, 'tail -n 10 '
-    #                              '/var/log/juju-ubuntu-local'
-    #                              '/all-machines.log')
-    #     except Exception:
-    #         return "Waiting..."
-
-    # def _set_apt_proxy(self):
-    #     self.api.set_apt_proxy()
-    #     self.api.set_apts_proxy()
-
-    # def cloud_init_finished(self, tries, maxlenient=20):
-    #     """checks cloud-init result.json in container to find out status
-
-    #     For the first `maxlenient` tries, it treats a container with
-    #     no IP and SSH errors as non-fatal, assuming initialization is
-    #     still ongoing. Afterwards, will raise exceptions for those
-    #     errors, so as not to loop forever.
-
-    #     returns True if cloud-init finished with no errors, False if
-    #     it's not done yet, and raises an exception if it had errors.
-
-    #     """
-    #     cmd = 'sudo cat /run/cloud-init/result.json'
-    #     try:
-    #         result_json = Container.run(self.container_name, cmd)
-
-    #     except NoContainerIPException as e:
-    #         log.debug("Container has no IPs according to lxc-info. "
-    #                   "Will retry.")
-    #         return False
-
-    #     except ContainerRunException as e:
-    #         _, returncode = e.args
-    #         if returncode == 255:
-    #             if tries < maxlenient:
-    #                 log.debug("Ignoring initial SSH error.")
-    #                 return False
-    #             raise e
-    #         if returncode == 1:
-    #             # the 'cat' did not find the file.
-    #             if tries < 1:
-    #                 log.debug("Waiting for cloud-init status result")
-    #             return False
-    #         else:
-    #             log.debug("Unexpected return code from reading "
-    #                       "cloud-init status in container.")
-    #             raise e
-
-    #     if result_json == '':
-    #         return False
-
-    #     try:
-    #         ret = json.loads(result_json)
-    #     except Exception as e:
-    #         if tries < maxlenient + 10:
-    #             log.debug("exception trying to parse '{}'"
-    #                       " - retrying".format(result_json))
-    #             return False
-
-    #         log.error(str(e))
-    #         log.debug("exception trying to parse '{}'".format(result_json))
-    #         raise e
-
-    #     errors = ret['v1']['errors']
-    #     if len(errors):
-    #         log.error("Container cloud-init finished with "
-    #                   "errors: {}".format(errors))
-    #         raise Exception("Top-level container OS did not initialize "
-    #                         "correctly.")
-    #     return True
-
-    # def run(self):
-    #     self.ensure_nested_kvm()
-    #     self.display_controller.status_info_message("Building environment")
-    #     if os.path.exists(self.container_abspath):
-    #         raise Exception("Container exists, please uninstall or kill "
-    #                         "existing cloud before proceeding.")
-
-    #     # Step 1 --------------------------------------------------------------
-    #     utils.ssh_genkey()
-
-    #     # Step 2 --------------------------------------------------------------
-    #     self._set_apt_proxy()
-
-    #     # Step 3 --------------------------------------------------------------
-    #     self.api.set_userdata()
-
-    #     # Step 4 --------------------------------------------------------------
-    #     utils.render_charm_config(self.config)
-
-    #     # Step 5 --------------------------------------------------------------
-    #     self.api.set_juju()
-
-    #     # Step 6 --------------------------------------------------------------
-    #     self.api.set_perms()
-
-    #     # Step 7 --------------------------------------------------------------
-    #     #  (Async)
-    #     self.api.create_container()
-
-    #     # Step 8 --------------------------------------------------------------
-    #     lxc_logfile = os.path.join(self.config.cfg_path, 'lxc.log')
-    #     self.api.start_container(lxc_logfile)
-    #     Container.wait_checked(self.container_name, lxc_logfile)
-
-    #     # Step 9 --------------------------------------------------------------
-    #     lxc_network = self.api.set_lxc_net_config()
-    #     self.api.set_static_route(lxc_network)
-
-    #     # Step 10 -------------------------------------------------------------
-    #     #  Copy over host ssh keys
-    #     Container.cp(self.container_name,
-    #                  os.path.join(utils.install_home(), '.ssh/id_rsa*'),
-    #                  '.ssh/.')
-
-    #     # Step 11 -------------------------------------------------------------
-    #     #  Install local copy of openstack installer if provided
-    #     upstream_deb = self.config.getopt("upstream_deb")
-    #     if upstream_deb:
-    #         self.api.copy_upstream_deb(upstream_deb)
-    #         self.api.install_upstream_deb()
-
-    #     # Step 12 -------------------------------------------------------------
-    #     #  Stop before we attempt to access container
-    #     if self.config.getopt('install_only'):
-    #         log.info("Done installing, stopping here per --install-only.")
-    #         self.config.setopt('install_only', True)
-    #         self.loop.exit(0)
-
-    #     # Step 13 -------------------------------------------------------------
-    #     #  Update jujus no-proxy setting if applicable
-    #     if self.config.getopt('http_proxy') or \
-    #        self.config.getopt('https_proxy'):
-    #         log.info("Updating juju environments for proxy support")
-    #         lxc_net = self.config.getopt('lxc_network')
-    #         self.config.update_environments_yaml(
-    #             key='no-proxy',
-    #             val='{},localhost,{}'.format(
-    #                 Container.ip(self.container_name),
-    #                 netutils.get_ip_set(lxc_net)))
-
-    #     # Step 14 -------------------------------------------------------------
-    #     #  start the party
-    #     cloud_status_bin = ['openstack-status']
-    #     Container.run(self.container_name,
-    #                   "{0} juju --debug bootstrap".format(
-    #                       self.config.juju_home(use_expansion=True)),
-    #                   use_ssh=True, output_cb=self.set_progress_output)
-    #     Container.run(
-    #         self.container_name,
-    #         "{0} juju status".format(
-    #             self.config.juju_home(use_expansion=True)),
-    #         use_ssh=True)
-
-    #     self.display_controller.status_info_message(
-    #         "Starting cloud deployment")
-    #     Container.run_status(
-    #         self.container_name, " ".join(cloud_status_bin), self.config)
+        self.sp_view.set_current_task(self.tasks['ensure_kvm'])
+        # Process first step
+        ensure_nested_kvm_f = self.api.ensure_nested_kvm_async()
+        ensure_nested_kvm_f.add_done_callback(self.handle_nested_kvm)

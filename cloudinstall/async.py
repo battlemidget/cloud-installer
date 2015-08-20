@@ -13,6 +13,32 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from .single import SingleInstallView  # NOQA
-from .singleprogress import SingleInstallProgressView  # NOQA
-from .path import InstallPathView  # NOQA
+""" Async Handler
+Provides async operations for various api calls and other non-blocking
+work.
+
+The way this works is you create your IO/CPU bound thread:
+
+.. code::
+
+    def my_async_method(self):
+        pool.submit(func, *args)
+
+    # In your controller you would then call
+
+    my_async_method_f = my_async_method()
+    my_async_method_f.add_done_callback(self.handle_async_method)
+
+    def handle_async_method(self, future):
+        try:
+            result = future.result()
+        except Exception as e:
+            raise Exception("Program in thread {}".format(e))
+
+"""
+
+from concurrent.futures import ThreadPoolExecutor
+
+
+class Async:
+    pool = ThreadPoolExecutor(10)

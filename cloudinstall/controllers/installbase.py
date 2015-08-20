@@ -43,7 +43,8 @@ class InstallController:
         signals = []
 
         # Add quit signal
-        signals.append(('quit', self.loop.exit))
+        signals.append(('quit', self.loop.exit()))
+        signals.append(('refresh', self.loop.redraw_screen()))
         self.signal.connect_signals(signals)
 
         # Registers signals from each controller
