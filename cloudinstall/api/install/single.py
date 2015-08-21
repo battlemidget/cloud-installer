@@ -24,6 +24,7 @@ from subprocess import call, check_call, check_output, STDOUT
 import os
 import json
 import logging
+import time
 from cloudinstall import utils, netutils
 from cloudinstall.async import Async
 from cloudinstall.api.container import (Container,
@@ -372,6 +373,18 @@ class SingleInstallAPI:
             raise Exception("Could not automatically reload kvm_intel kernel"
                             "module to enable nested VMs. A manual reboot or "
                             "reload will be required.")
+        return True
+
+    def wait_cloud_init_finished_async(self):
+        return Async.pool.submit(self.wait_cloud_init_finished)
+
+    def wait_cloud_init_finished(self):
+        tries = 0
+        while not self.cloud_init_finished(tries):
+            log.debug("Waiting for container")
+            time.sleep(1)
+            tries += 1
+        return
 
     def cloud_init_finished_async(self, tries, maxlenient=20):
         return Async.pool.submit(self.cloud_init_finished, tries, maxlenient)

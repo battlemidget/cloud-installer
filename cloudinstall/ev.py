@@ -15,6 +15,7 @@
 
 from cloudinstall.ui.palette import STYLES
 import logging
+from tornado.ioloop import IOLoop
 import urwid
 
 log = logging.getLogger('cloudinstall.ev')
@@ -39,6 +40,9 @@ class EventLoop:
     def exit(self):
         raise urwid.ExitMainLoop()
 
+    def stop(self):
+        self.loop.stop()
+
     def redraw_screen(self):
         try:
             self.loop.draw_screen()
@@ -59,7 +63,9 @@ class EventLoop:
         }
         additional_opts['screen'].set_terminal_properties(colors=256)
         additional_opts['screen'].reset_default_terminal_palette()
-        return urwid.MainLoop(self.ui, STYLES, **additional_opts)
+        evl = urwid.TornadoEventLoop(IOLoop())
+        return urwid.MainLoop(
+            self.ui, STYLES, event_loop=evl, **additional_opts)
 
     def run(self):
         """ Run eventloop

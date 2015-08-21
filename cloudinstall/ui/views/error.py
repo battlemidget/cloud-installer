@@ -42,6 +42,10 @@ class ErrorView(ViewPolicy):
             Padding.line_break(""),
             Padding.center_79(
                 Color.error_major(Text("Reason: {}".format(self.error)))),
+            Padding.line_break(""),
+            Padding.center_95(
+                Text("You'll need to press CTRL-C to exit the installation.")),
+            Padding.line_break(""),
             Padding.center_20(self._build_buttons())
         ]
         super().__init__(ListBox(body))

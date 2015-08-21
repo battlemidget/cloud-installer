@@ -7,7 +7,6 @@ dist
 *.substvars
 *.debhelper
 *.pybuild
-debian
 
 *.swp
 # the dependencies deb

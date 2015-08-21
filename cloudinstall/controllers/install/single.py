@@ -17,11 +17,8 @@
 
 import logging
 import os
-import time
-from functools import partial
 from subprocess import check_output, STDOUT
-from concurrent.futures import wait
-from cloudinstall.async import Async
+from tornado.gen import coroutine
 from cloudinstall import utils, netutils
 from cloudinstall.api.container import Container
 from cloudinstall.controller import ControllerPolicy
@@ -47,6 +44,7 @@ class SingleInstallController(ControllerPolicy):
         self.config = config
         self.model = SingleInstallModel()
         self.api = SingleInstallAPI(self.config)
+        self.container_name = self.config['settings.single']['container_name']
 
     def single(self):
         """ Start prompting for Single Install information
@@ -84,162 +82,145 @@ class SingleInstallController(ControllerPolicy):
         except Exception:
             return "Waiting..."
 
-    def wait_for_task(self, future, msg=None):
+    def print_task(self, msg=None):
+        if msg:
+            log.debug("Task: {}".format(msg))
+            self.sp_view.set_current_task(msg)
+        # self.ui.set_body(ErrorView(self.model,
+        #                            self.signal,
+        #                            e))
+
+    @coroutine
+    def ensure_kvm(self):
+        self.print_task("1 ensuring kvm loaded")
         try:
-            result = future.result()
-            if msg:
-                log.debug("Task: {}, Result: {}".format(msg, result))
-                self.sp_view.set_current_task(msg)
+            yield self.api.ensure_nested_kvm_async()
+        except:
+            log.error("problem with ensure kvm")
+        self.ssh_genkey()
+
+    @coroutine
+    def ssh_genkey(self):
+        self.print_task("2 genkey")
+        try:
+            yield utils.ssh_genkey_async()
+        except:
+            log.error("problem with genkey")
+        self.set_apt_proxy()
+
+    @coroutine
+    def set_apt_proxy(self):
+        self.print_task("3 apt proxy")
+        yield self.api.set_apt_proxy_async()
+        yield self.api.set_apts_proxy_async()
+        self.set_userdata()
+
+    @coroutine
+    def set_userdata(self):
+        self.print_task("4 userdata")
+        yield self.api.set_userdata_async()
+        self.set_charmconfig()
+
+    @coroutine
+    def set_charmconfig(self):
+        self.print_task("5 charmconfig")
+        yield utils.render_charm_config_async(self.config)
+        self.set_juju()
+
+    @coroutine
+    def set_juju(self):
+        self.print_task("6 juju")
+        yield self.api.set_juju_async()
+        self.set_perms()
+
+    @coroutine
+    def set_perms(self):
+        self.print_task("7 perms")
+        yield self.api.set_perms_async()
+        self.set_create_container()
+
+    @coroutine
+    def set_create_container(self):
+        self.print_task("8 create container")
+        yield self.api.create_container_async()
+        self.start_container()
+
+    @coroutine
+    def start_container(self):
+        self.print_task("9 start container")
+        lxc_logfile = os.path.join(
+            self.config['settings']['cfg_path'], 'lxc.log')
+        yield self.api.start_container_async(lxc_logfile)
+        self.wait_for_container()
+
+    @coroutine
+    def wait_for_container(self):
+        self.print_task("10 wait container")
+        lxc_logfile = os.path.join(
+            self.config['settings']['cfg_path'], 'lxc.log')
+        try:
+            yield Container.wait_checked_async(self.container_name,
+                                               lxc_logfile)
         except Exception as e:
             self.ui.set_body(ErrorView(self.model,
                                        self.signal,
                                        e))
+        self.wait_for_cloud_init_finish()
 
-    def _set_ssh_key(self, future):
-        set_ssh_key_f = utils.ssh_genkey_async()
-        set_ssh_key_f.add_done_callback(
-            partial(self.wait_for_task,
-                    msg="Generating SSH keys"))
+    @coroutine
+    def wait_for_cloud_init_finish(self):
+        self.print_task("10.1 wait container loop")
+        try:
+            yield self.api.wait_cloud_init_finished_async()
+        except Exception as e:
+            self.ui.set_body(ErrorView(self.model,
+                                       self.signal,
+                                       e))
+        self.set_lxc_network()
 
-        future_complete_f = Async.pool.submit(
-            lambda: wait(set_ssh_key_f, 10))
-        future_complete_f.add_done_callback(self._set_apt_proxy)
-
-    def _set_apt_proxy(self, future):
-        set_apt_proxy_f = self.api.set_apt_proxy_async()
-        set_apt_proxy_f.add_done_callback(
-            partial(self.wait_for_task, msg="Checking APT proxy"))
-
-        set_apts_proxy_f = self.api.set_apts_proxy_async()
-        set_apts_proxy_f.add_done_callback(
-            partial(self.wait_for_task, msg="Checking APTS proxy"))
-
-        futures = (set_apt_proxy_f, set_apts_proxy_f)
-        future_complete_f = Async.pool.submit(lambda: wait(futures, 10))
-        future_complete_f.add_done_callback(self._set_userdata)
-
-    def _set_userdata(self, future):
-        set_userdata_f = self.api.set_userdata_async()
-        set_userdata_f.add_done_callback(
-            partial(self.wait_for_task, msg="Defining cloud-init userdata"))
-
-        future_complete_f = Async.pool.submit(lambda: wait(set_userdata_f, 10))
-        future_complete_f.add_done_callback(self._set_charmconfig)
-
-    def _set_charmconfig(self, future):
-        render_charmconf_f = utils.render_charm_config_async(self.config)
-        render_charmconf_f.add_done_callback(
-            partial(self.wait_for_task, msg="Defining charm config"))
-
-        future_complete_f = Async.pool.submit(
-            lambda: wait(render_charmconf_f, 10))
-        future_complete_f.add_done_callback(self._set_juju)
-
-    def _set_juju(self, future):
-        set_juju_f = self.api.set_juju_async()
-        set_juju_f.add_done_callback(
-            partial(self.wait_for_task, msg="Configuring Juju"))
-
-        future_complete_f = Async.pool.submit(lambda: wait(set_juju_f, 10))
-        future_complete_f.add_done_callback(self._set_perms)
-
-    def _set_perms(self, future):
-        set_perms_f = self.api.set_perms_async()
-        set_perms_f.add_done_callback(
-            partial(self.wait_for_task, msg='Setting permissions'))
-
-        future_complete_f = Async.pool.submit(lambda: wait(set_perms_f, 10))
-        future_complete_f.add_done_callback(self._set_create_container)
-
-    def _set_create_container(self, future):
-        create_container_f = self.api.create_container_async()
-        create_container_f.add_done_callback(
-            partial(self.wait_for_task, msg="Creating host container"))
-
-        future_complete_f = Async.pool.submit(
-            lambda: wait(create_container_f, 1200))
-        future_complete_f.add_done_callback(self._start_container)
-
-    def _start_container(self, future):
-        lxc_logfile = os.path.join(
-            self.config['settings']['cfg_path'], 'lxc.log')
-        start_container_f = self.api.start_container_async(lxc_logfile)
-        start_container_f.add_done_callback(
-            partial(self.wait_for_task, msg="Starting Container"))
-
-        future_complete_f = Async.pool.submit(
-            lambda: wait(start_container_f, 1200))
-        future_complete_f.add_done_callback(self._wait_for_container)
-
-    def _wait_for_container(self, future):
-        lxc_logfile = os.path.join(
-            self.config['settings']['cfg_path'], 'lxc.log')
-        Container.wait_checked(self.container_name, lxc_logfile)
-        tries = 0
-        while not self.cloud_init_finished(tries):
-            log.debug("Waiting for container")
-            time.sleep(1)
-            tries += 1
-        return self._set_lxc_network()
-
-    def _set_lxc_network(self, future):
+    @coroutine
+    def set_lxc_network(self):
+        self.print_task("11 lxc network")
         lxc_network = self.api.set_lxc_net_config()
-        static_route_f = self.api.set_static_route_async(lxc_network)
-        static_route_f.add_done_callback(
-            partial(self.wait_for_task, msg="Configure LXC network"))
+        yield self.api.set_static_route_async(lxc_network)
+        self.set_install_deps()
 
-        future_complete_f = Async.pool.submit(lambda: wait(static_route_f, 10))
-        future_complete_f.add_done_callback(self._set_install_deps)
+    @coroutine
+    def set_install_deps(self):
+        self.print_task("12 deps")
+        yield self.api.install_dependencies_async()
+        self.set_copy_host_ssh()
 
-    def _set_install_deps(self, future):
-        install_deps_f = self.api.install_dependencies_async()
-        install_deps_f.add_done_callback(
-            partial(self.wait_for_task, msg="Installing dependencies"))
+    @coroutine
+    def set_copy_host_ssh(self):
+        self.print_task("13 copy host ssh")
+        yield self.api.copy_host_ssh_to_container_async()
+        self.set_upstream_deb()
 
-        future_complete_f = Async.pool.submit(
-            lambda: wait(install_deps_f, 1200))
-        future_complete_f.add_done_callback(self._set_copy_host_ssh)
-
-    def _set_copy_host_ssh(self, future):
-        copy_host_ssh_f = self.api.copy_host_ssh_to_container_async()
-        copy_host_ssh_f.add_done_callback(
-            partial(self.wait_for_task, msg="Copying ssh keys to container"))
-
-        future_complete_f = Async.pool.submit(
-            lambda: wait(copy_host_ssh_f, 20))
-        future_complete_f.add_done_callback(self._set_upstream_deb)
-
-    def _set_upstream_deb(self, future):
+    @coroutine
+    def set_upstream_deb(self):
+        self.print_task("14 upstream deb")
         upstream_deb = self.config['settings.single']['upstream_deb_path']
         if upstream_deb:
-            copy_upstream_deb_f = self.api.copy_upstream_deb_async()
-            copy_upstream_deb_f.add_done_callback(
-                partial(self.wait_for_task,
-                        msg="Setting local debian package"))
+            yield self.api.copy_upstream_deb_async()
+            yield self.api.install_upstream_deb_async()
+        self.set_install_only()
 
-            install_upstream_deb_f = self.api.install_upstream_deb_async()
-            install_upstream_deb_f.add_done_callback(
-                partial(self.wait_for_task,
-                        msg="Installing upstream debian package"))
-
-            futures = (copy_upstream_deb_f, install_upstream_deb_f)
-            future_complete_f = Async.pool.submit(lambda: wait(futures, 100))
-            future_complete_f.add_done_callback(self._set_install_only)
-        return self._set_install_only()
-
-    def _set_install_only(self):
+    def set_install_only(self):
+        self.print_task("15 install only")
         # Close out loop if install only
-        log.debug("Checking if we should stop for --install-only")
+        self.print_task("Checking if we should stop for --install-only")
         if self.config['settings']['install_only']:
             log.info("Done installing, stopping here per --install-only.")
             self.config['settings']['install_only'] = "yes"
             utils.write_ini(self.config)
             self.signal.emit_signal('quit')
-        return self._set_juju_proxy()
+        return self.set_juju_proxy()
 
-    def _set_juju_proxy(self):
+    def set_juju_proxy(self):
+        self.print_task("16 juju proxy")
         #  Update jujus no-proxy setting if applicable
-        log.debug("Writing juju proxy settings if applicable")
+        self.print_task("Writing juju proxy settings if applicable")
         proxy = self.config['settings.proxy']
         if proxy['http_proxy'] or proxy['https_proxy']:
             log.info("Updating juju environments for proxy support")
@@ -249,10 +230,10 @@ class SingleInstallController(ControllerPolicy):
                 val='{},localhost,{}'.format(
                     Container.ip(self.container_name),
                     netutils.get_ip_set(lxc_net)))
-        return self._start_status()
+        return self.start_status()
 
-    def _start_status(self):
-        log.debug("Starting status screen.")
+    def start_status(self):
+        self.print_task("17 Starting status screen.")
         # Save our config before moving on to dashboard
         utils.write_ini(self.config)
         cloud_status_bin = ['openstack-status']
@@ -286,11 +267,4 @@ class SingleInstallController(ControllerPolicy):
         self.ui.set_body(self.sp_view)
 
         # Process first step
-        ensure_nested_kvm_f = self.api.ensure_nested_kvm_async()
-        ensure_nested_kvm_f.add_done_callback(
-            partial(self.wait_for_task,
-                    msg='Ensuring KVM is loaded'))
-
-        future_complete_f = Async.pool.submit(
-            lambda: wait(ensure_nested_kvm_f, 300))
-        future_complete_f.add_done_callback(self._set_ssh_key)
+        return self.ensure_kvm()

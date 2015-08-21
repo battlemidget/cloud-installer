@@ -26,6 +26,7 @@ import codecs
 import errno
 from collections import deque
 from cloudinstall import utils
+from cloudinstall.async import Async
 
 log = logging.getLogger("cloudinstall.api.container")
 
@@ -254,6 +255,13 @@ class Container:
         return out['status']
 
     @classmethod
+    def wait_checked_async(cls, name, check_logfile, interval=20):
+        return Async.pool.submit(Container.wait_checked,
+                                 name,
+                                 check_logfile,
+                                 interval)
+
+    @classmethod
     def wait_checked(cls, name, check_logfile, interval=20):
         """waits for container to be in RUNNING state, checking
         'check_logfile' every 'interval' seconds for error messages.
@@ -277,6 +285,7 @@ class Container:
             if grepout['status'] == 0:
                 raise Exception("Error detected starting container. See {} "
                                 "for details.".format(check_logfile))
+        return
 
     @classmethod
     def wait(cls, name):
