@@ -96,9 +96,10 @@ class SingleInstallController(ControllerPolicy):
     @coroutine
     def set_apt_proxy(self):
         self.print_task("3 apt proxy")
-        apt_proxy = self.api.set_apt_proxy_async()
-        apts_proxy = self.api.set_apts_proxy_async()
-        yield [apt_proxy, apts_proxy]
+        try:
+            yield self.api.set_apt_proxy_async()
+        except Exception as e:
+            log.exception(e)
         self.set_userdata()
 
     @coroutine
@@ -198,7 +199,7 @@ class SingleInstallController(ControllerPolicy):
         """
         title = "Single installation"
         excerpt = ("Please fill out the input fields to continue with "
-                   "the single installation.")
+                   "the single installation. See `man openstack-config`")
         self.ui.set_header(title, excerpt)
         use_advanced = self.config['runtime'].getboolean(
             'advanced_config', False)
@@ -211,9 +212,17 @@ class SingleInstallController(ControllerPolicy):
         """
         password = opts['settings']['password'].value
         self.config['settings']['password'] = password
-
         log.info("Password entered, saving {}".format(
             self.config['settings']['password']))
+
+        if self.config['runtime'].getboolean('advanced_config', False):
+            log.info("Saving rest of advanced configuration settings.")
+            for k in opts.keys():
+                for a, b in opts[k].items():
+                    self.config[k][a] = b.value
+                    log.debug("Saved {}({}): {}".format(k,
+                                                        a,
+                                                        self.config[k][a]))
         log.info("Starting a single installation.")
 
         title = "Single installation progress"

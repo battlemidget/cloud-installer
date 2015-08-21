@@ -17,7 +17,6 @@
 """
 
 import logging
-from collections import OrderedDict
 from urwid import (Pile, Columns, Text, ListBox, Divider)
 from cloudinstall.view import ViewPolicy
 from cloudinstall.ui.buttons import confirm_btn, cancel_btn
@@ -40,31 +39,31 @@ class SingleInstallView(ViewPolicy):
         self.signal = signal
         self.confirm_password = ConfirmPassword()
         self.inputs = {
-            'settings': OrderedDict({
+            'settings': {
                 'password': Password(),
                 'install_only': PlainStringEditor(edit_text="no"),
                 'use_upstream_ppa': PlainStringEditor(edit_text="no"),
                 'upstream_ppa': PlainStringEditor(),
                 'apt_mirror': PlainStringEditor(),
                 'upstream_deb': PlainStringEditor()
-            }),
-            'proxy': OrderedDict({
+            },
+            'settings.proxy': {
                 'http_proxy': PlainStringEditor(),
                 'https_proxy': PlainStringEditor(),
                 'apt_proxy': PlainStringEditor(),
                 'apt_https_proxy': PlainStringEditor(),
                 'no_proxy': PlainStringEditor()
-            }),
-            'openstack': OrderedDict({
+            },
+            'settings.openstack': {
                 'tip': PlainStringEditor(edit_text="no"),
                 'release': PlainStringEditor(edit_text="kilo"),
                 'use_next_charms': PlainStringEditor(edit_text="no"),
                 'use_nclxd': PlainStringEditor(edit_text="no")
-            }),
-            'glance': OrderedDict({
+            },
+            'settings.image_sync': {
                 'release': PlainStringEditor(edit_text="trusty"),
                 'arch': PlainStringEditor(edit_text="amd64")
-            })
+            }
         }
 
         self.password_info = Text("Enter a new password")
@@ -72,7 +71,8 @@ class SingleInstallView(ViewPolicy):
             Padding.center_79(self.password_info),
             Padding.center_79(
                 Color.info_minor(Text("This is your password to be used "
-                                      "when logging into Horizon"))),
+                                      "when logging into OpenStack services "
+                                      "such as Horizon"))),
             Padding.center_79(Divider('-', 0, 1)),
             Padding.center_50(self._build_form()),
             Padding.line_break("")
@@ -117,11 +117,12 @@ class SingleInstallView(ViewPolicy):
     def _build_form_advanced(self):
         sections = [
             ("Settings", "Additional settings for this installer", "settings"),
-            ("Proxy", "Define your HTTP/S APT/S proxy settings", "proxy"),
+            ("Proxy", "Define your HTTP/S APT/S proxy settings",
+             "settings.proxy"),
             ("OpenStack", "Settings specific to how OpenStack is deployed",
-             "openstack"),
+             "settings.openstack"),
             ("Glance", "Settings for the Glance Simplestreams Sync charm",
-             "glance")
+             "settings.image_sync")
         ]
         return Pile([self.gen_inputs(label, desc, k)
                      for label, desc, k in sections])
@@ -152,6 +153,17 @@ class SingleInstallView(ViewPolicy):
         password = self.inputs['settings']['password'].value
         confirm_password = self.confirm_password.value
 
+        # Validate proxy ------------------------------------------------------
+        http_proxy = self.inputs['settings.proxy']['http_proxy'].value
+        https_proxy = self.inputs['settings.proxy']['https_proxy'].value
+        if http_proxy and not https_proxy:
+            self.inputs['settings.proxy']['https_proxy'].set_result(
+                http_proxy)
+        if https_proxy and not http_proxy:
+            self.inputs['settings.proxy']['http_proxy'].set_result(
+                http_proxy)
+
+        # Validate Password ---------------------------------------------------
         if password != confirm_password:
             self._set_password_info("Passwords do not match.")
         elif not password or not confirm_password:

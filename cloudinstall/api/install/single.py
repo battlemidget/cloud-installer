@@ -59,19 +59,13 @@ class SingleInstallAPI:
         http_proxy = proxy['http_proxy']
         if not apt_proxy and http_proxy:
             proxy['apt_proxy'] = http_proxy
-            utils.write.ini(self.config)
 
-    def set_apts_proxy_async(self):
-        return Async.pool.submit(self.set_apts_proxy)
-
-    def set_apts_proxy(self):
-        "Use https_proxy unless apt_https_proxy is explicitly set"
-        proxy = self.config['settings.proxy']
         apt_https_proxy = proxy['apt_https_proxy']
         https_proxy = proxy['https_proxy']
         if not apt_https_proxy and https_proxy:
             proxy['apt_https_proxy'] = https_proxy
-            utils.write_ini(self.config)
+        utils.write_ini(self.config)
+        return
 
     def set_proxy_pollinate_async(self):
         return Async.pool.submit(self.set_proxy_polliante)
@@ -89,6 +83,7 @@ class SingleInstallAPI:
         if https_proxy:
             pollinate.append('https_proxy={}'.format(https_proxy))
         pollinate.extend(['pollinate', '-q'])
+        utils.write_ini(self.config)
         return pollinate
 
     def set_userdata_async(self):
@@ -175,7 +170,6 @@ class SingleInstallAPI:
         network = netutils.get_unique_lxc_network()
         self.config['settings.single']['lxc_network'] = network
         utils.write_ini(self.config)
-
         nw = IPv4Network(network)
         addr = nw[1]
         netmask = nw.with_netmask.split('/')[-1]
@@ -201,6 +195,7 @@ class SingleInstallAPI:
         # Store container IP in config
         ip = Container.ip(self.container_name)
         self.config['settings.single']['container_ip'] = ip
+        utils.write_ini(self.config)
 
         log.info("Adding static route for {} via {}".format(lxc_net,
                                                             ip))
@@ -268,8 +263,8 @@ class SingleInstallAPI:
         # control over ordering
         log.debug("Container started, cloud-init done.")
 
-        lxc_network = self.write_lxc_net_config()
-        self.add_static_route(lxc_network)
+        lxc_network = self.set_lxc_net_config()
+        self.set_static_route(lxc_network)
 
         log.debug("Installing openstack & openstack-single directly, "
                   "and juju-local, libvirt-bin and lxc via deps")
