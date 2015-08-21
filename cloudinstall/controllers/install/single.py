@@ -142,54 +142,13 @@ class SingleInstallController(ControllerPolicy):
     @coroutine
     def set_create_container(self):
         self.print_task("8 create container")
-        yield self.api.create_container_async()
-        self.start_container()
-
-    @coroutine
-    def start_container(self):
-        self.print_task("9 start container")
-        lxc_logfile = os.path.join(
-            self.config['settings']['cfg_path'], 'lxc.log')
-        yield self.api.start_container_async(lxc_logfile)
-        self.wait_for_container()
-
-    @coroutine
-    def wait_for_container(self):
-        self.print_task("10 wait container")
-        lxc_logfile = os.path.join(
-            self.config['settings']['cfg_path'], 'lxc.log')
         try:
-            yield Container.wait_checked_async(self.container_name,
-                                               lxc_logfile)
+            yield self.api.create_container_async()
+            self.set_copy_host_ssh()
         except Exception as e:
             self.ui.set_body(ErrorView(self.model,
                                        self.signal,
                                        e))
-        self.wait_for_cloud_init_finish()
-
-    @coroutine
-    def wait_for_cloud_init_finish(self):
-        self.print_task("10.1 wait container loop")
-        try:
-            yield self.api.wait_cloud_init_finished_async()
-        except Exception as e:
-            self.ui.set_body(ErrorView(self.model,
-                                       self.signal,
-                                       e))
-        self.set_lxc_network()
-
-    @coroutine
-    def set_lxc_network(self):
-        self.print_task("11 lxc network")
-        lxc_network = self.api.set_lxc_net_config()
-        yield self.api.set_static_route_async(lxc_network)
-        self.set_install_deps()
-
-    @coroutine
-    def set_install_deps(self):
-        self.print_task("12 deps")
-        yield self.api.install_dependencies_async()
-        self.set_copy_host_ssh()
 
     @coroutine
     def set_copy_host_ssh(self):

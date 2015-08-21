@@ -36,6 +36,8 @@ class ErrorView(ViewPolicy):
         self.model = model
         self.signal = signal
         self.error = error
+        bug_url = ("https://github.com/Ubuntu-Solutions-Engineering"
+                   "/openstack-installer/issues/new")
         body = [
             Padding.center_95(
                 Text("Oops, there was a problem with your install:")),
@@ -44,7 +46,8 @@ class ErrorView(ViewPolicy):
                 Color.error_major(Text("Reason: {}".format(self.error)))),
             Padding.line_break(""),
             Padding.center_95(
-                Text("You'll need to press CTRL-C to exit the installation.")),
+                Text("Please file a bug with the output of "
+                     "~/.cloud-install/*.log at {}".format(bug_url))),
             Padding.line_break(""),
             Padding.center_20(self._build_buttons())
         ]

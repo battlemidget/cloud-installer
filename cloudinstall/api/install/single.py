@@ -251,36 +251,34 @@ class SingleInstallAPI:
                     "lxc.start.auto = 1\n"
                     "lxc.start.delay = 5\n"
                     "lxc.mount = {}/fstab\n".format(self.container_abspath))
+        lxc_logfile = os.path.join(
+            self.config['settings']['cfg_path'], 'lxc.log')
 
-    def start_container_async(self, lxc_logfile):
-        return Async.pool.submit(self.start_container, lxc_logfile)
-
-    def start_container(self, lxc_logfile):
         Container.start(self.container_name, lxc_logfile)
+
+        Container.wait_checked(self.container_name,
+                               lxc_logfile)
+
+        tries = 0
+        while not self.cloud_init_finished(tries):
+            time.sleep(1)
+            tries += 1
 
         # we do this here instead of using cloud-init, for greater
         # control over ordering
         log.debug("Container started, cloud-init done.")
 
-    def install_dependencies_async(self):
-        return Async.pool.submit(self.install_dependencies)
+        lxc_network = self.write_lxc_net_config()
+        self.add_static_route(lxc_network)
 
-    def install_dependencies(self):
-        """ Install dependencies inside the container
-
-        :params cb: Set a callback function
-        """
         log.debug("Installing openstack & openstack-single directly, "
                   "and juju-local, libvirt-bin and lxc via deps")
-        try:
-            Container.run(self.container_name,
-                          "env DEBIAN_FRONTEND=noninteractive apt-get -qy "
-                          "-o Dpkg::Options::=--force-confdef "
-                          "-o Dpkg::Options::=--force-confold "
-                          "install openstack openstack-single ")
-        except Exception:
-            raise ContainerRunException(
-                "Unable to install dependencies in container")
+        Container.run(self.container_name,
+                      "env DEBIAN_FRONTEND=noninteractive apt-get -qy "
+                      "-o Dpkg::Options::=--force-confdef "
+                      "-o Dpkg::Options::=--force-confold "
+                      "install openstack openstack-single ")
+        log.debug("done installing deps")
 
     def copy_upstream_deb_async(self, upstream_deb):
         return Async.pool.submit(self.copy_upstream_deb)
@@ -374,20 +372,6 @@ class SingleInstallAPI:
                             "module to enable nested VMs. A manual reboot or "
                             "reload will be required.")
         return True
-
-    def wait_cloud_init_finished_async(self):
-        return Async.pool.submit(self.wait_cloud_init_finished)
-
-    def wait_cloud_init_finished(self):
-        tries = 0
-        while not self.cloud_init_finished(tries):
-            log.debug("Waiting for container")
-            time.sleep(1)
-            tries += 1
-        return
-
-    def cloud_init_finished_async(self, tries, maxlenient=20):
-        return Async.pool.submit(self.cloud_init_finished, tries, maxlenient)
 
     def cloud_init_finished(self, tries, maxlenient=20):
         """checks cloud-init result.json in container to find out status

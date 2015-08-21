@@ -255,13 +255,6 @@ class Container:
         return out['status']
 
     @classmethod
-    def wait_checked_async(cls, name, check_logfile, interval=20):
-        return Async.pool.submit(Container.wait_checked,
-                                 name,
-                                 check_logfile,
-                                 interval)
-
-    @classmethod
     def wait_checked(cls, name, check_logfile, interval=20):
         """waits for container to be in RUNNING state, checking
         'check_logfile' every 'interval' seconds for error messages.

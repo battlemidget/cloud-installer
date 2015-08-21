@@ -17,3 +17,8 @@ cover
 *~
 .tox
 tmp
+debian/files
+debian/openstack-landscape
+debian/openstack-multi
+debian/openstack-single
+debian/openstack/
