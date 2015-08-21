@@ -26,7 +26,6 @@ log = logging.getLogger("cloudinstall.viewpolicy")
 
 class ViewPolicy(WidgetWrap):
     def keypress(self, size, key):
-        log.debug("policy keypress: {}".format(key))
         if key == 'esc':
             self.signal.emit_signal(self.model.get_previous_signal)
         if key == 'ctrl w':
