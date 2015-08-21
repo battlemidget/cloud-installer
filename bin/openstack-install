@@ -72,7 +72,7 @@ def set_config_defaults(config):
         'path': os.path.join(CFG_DIR, 'juju'),
         'home': os.path.join(CFG_DIR, 'juju'),
         'home_expanded': "~/.cloud-install/juju",
-        'environments_path': os.path.join(CFG_DIR, 'juju', 'environments'),
+        'environments_path': os.path.join(CFG_DIR, 'juju', 'environments.yaml'),
         'series': "trusty",
     }
     config['settings.single'] = {
