@@ -46,21 +46,6 @@ class SingleInstallController(ControllerPolicy):
         self.api = SingleInstallAPI(self.config)
         self.container_name = self.config['settings.single']['container_name']
 
-    def single(self):
-        """ Start prompting for Single Install information
-        """
-        # TODO: Add exception view
-        # if os.path.exists(self.container_abspath):
-        #     raise Exception("Container exists, please uninstall or kill "
-        #                     "existing cloud before proceeding.")
-
-        title = "Single installation"
-        excerpt = ("Please fill out the input fields to continue with "
-                   "the single installation.")
-        self.ui.set_header(title, excerpt)
-        self.ui.set_body(SingleInstallView(self.model,
-                                           self.signal))
-
     def _read_container_status(self):
         return check_output("lxc-info -n {} -s "
                             "|| true".format(self.container_name),
@@ -111,8 +96,9 @@ class SingleInstallController(ControllerPolicy):
     @coroutine
     def set_apt_proxy(self):
         self.print_task("3 apt proxy")
-        yield self.api.set_apt_proxy_async()
-        yield self.api.set_apts_proxy_async()
+        apt_proxy = self.api.set_apt_proxy_async()
+        apts_proxy = self.api.set_apts_proxy_async()
+        yield [apt_proxy, apts_proxy]
         self.set_userdata()
 
     @coroutine
@@ -207,10 +193,24 @@ class SingleInstallController(ControllerPolicy):
         Container.run_status(
             self.container_name, " ".join(cloud_status_bin), self.config)
 
+    def single(self):
+        """ Start prompting for Single Install information
+        """
+        title = "Single installation"
+        excerpt = ("Please fill out the input fields to continue with "
+                   "the single installation.")
+        self.ui.set_header(title, excerpt)
+        use_advanced = self.config['runtime'].getboolean(
+            'advanced_config', False)
+        self.ui.set_body(SingleInstallView(self.model,
+                                           self.signal,
+                                           use_advanced))
+
     def single_start(self, opts):
         """ Start single install, processing opts
         """
-        self.config['settings']['password'] = opts['password']
+        password = opts['settings']['password'].value
+        self.config['settings']['password'] = password
 
         log.info("Password entered, saving {}".format(
             self.config['settings']['password']))
@@ -218,7 +218,7 @@ class SingleInstallController(ControllerPolicy):
 
         title = "Single installation progress"
         excerpt = ("Currently installing OpenStack via Single Installation "
-                   "method. Press (Q) or CTRL-C to quit "
+                   "method. Press CTRL-W to quit "
                    "installation.")
         self.ui.set_header(title, excerpt)
         self.sp_view = SingleInstallProgressView(self.model,

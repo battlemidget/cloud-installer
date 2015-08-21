@@ -17,11 +17,13 @@
 """
 
 import logging
+from collections import OrderedDict
 from urwid import (Pile, Columns, Text, ListBox, Divider)
 from cloudinstall.view import ViewPolicy
 from cloudinstall.ui.buttons import confirm_btn, cancel_btn
 from cloudinstall.ui.widgets import (Password,
-                                     ConfirmPassword)
+                                     ConfirmPassword,
+                                     PlainStringEditor)
 from cloudinstall.ui.utils import Color, Padding
 
 
@@ -33,12 +35,39 @@ class SingleInstallViewException(Exception):
 
 
 class SingleInstallView(ViewPolicy):
-    def __init__(self, model, signal):
+    def __init__(self, model, signal, advanced=False):
         self.model = model
         self.signal = signal
-        self.password = Password()
         self.confirm_password = ConfirmPassword()
-        self.password_info = Text("Enter a new password:")
+        self.inputs = {
+            'settings': OrderedDict({
+                'password': Password(),
+                'install_only': PlainStringEditor(edit_text="no"),
+                'use_upstream_ppa': PlainStringEditor(edit_text="no"),
+                'upstream_ppa': PlainStringEditor(),
+                'apt_mirror': PlainStringEditor(),
+                'upstream_deb': PlainStringEditor()
+            }),
+            'proxy': OrderedDict({
+                'http_proxy': PlainStringEditor(),
+                'https_proxy': PlainStringEditor(),
+                'apt_proxy': PlainStringEditor(),
+                'apt_https_proxy': PlainStringEditor(),
+                'no_proxy': PlainStringEditor()
+            }),
+            'openstack': OrderedDict({
+                'tip': PlainStringEditor(edit_text="no"),
+                'release': PlainStringEditor(edit_text="kilo"),
+                'use_next_charms': PlainStringEditor(edit_text="no"),
+                'use_nclxd': PlainStringEditor(edit_text="no")
+            }),
+            'glance': OrderedDict({
+                'release': PlainStringEditor(edit_text="trusty"),
+                'arch': PlainStringEditor(edit_text="amd64")
+            })
+        }
+
+        self.password_info = Text("Enter a new password")
         body = [
             Padding.center_79(self.password_info),
             Padding.center_79(
@@ -46,9 +75,12 @@ class SingleInstallView(ViewPolicy):
                                       "when logging into Horizon"))),
             Padding.center_79(Divider('-', 0, 1)),
             Padding.center_50(self._build_form()),
-            Padding.line_break(""),
-            Padding.center_20(self._build_buttons())
+            Padding.line_break("")
         ]
+        if advanced:
+            body.append(self._build_form_advanced())
+            body.append(Padding.line_break(""))
+        body.append(Padding.center_20(self._build_buttons()))
         super().__init__(ListBox(body))
 
     def _build_buttons(self):
@@ -62,34 +94,73 @@ class SingleInstallView(ViewPolicy):
         ]
         return Pile(buttons)
 
+    def gen_inputs(self, label, desc, key):
+        rows = []
+        rows.append(Padding.center_79(Text(label)))
+        rows.append(Padding.center_79(
+            Color.info_minor(Text(desc))))
+        rows.append(Padding.center_79(Divider('-', 0, 1)))
+        for k, v in self.inputs[key].items():
+            if k == 'password':
+                continue
+            rows.append(Padding.center_50(Columns([
+                ("weight",
+                 0.2,
+                 Text(k.replace("_", " ").capitalize(),
+                      align="right")),
+                ("weight",
+                 0.3,
+                 Color.string_input(v, focus_map="string_input focus"))
+            ], dividechars=4)))
+        return Pile(rows)
+
+    def _build_form_advanced(self):
+        sections = [
+            ("Settings", "Additional settings for this installer", "settings"),
+            ("Proxy", "Define your HTTP/S APT/S proxy settings", "proxy"),
+            ("OpenStack", "Settings specific to how OpenStack is deployed",
+             "openstack"),
+            ("Glance", "Settings for the Glance Simplestreams Sync charm",
+             "glance")
+        ]
+        return Pile([self.gen_inputs(label, desc, k)
+                     for label, desc, k in sections])
+
     def _build_form(self):
-        password_input = Columns([
-            ("weight", 0.2, Text("Password", align="right")),
-            ("weight", 0.3, Color.string_input(self.password))
-        ], dividechars=4)
-        confirm_password_input = Columns([
-            ("weight", 0.2, Text("Confirm Password", align="right")),
-            ("weight", 0.3, Color.string_input(self.confirm_password))
-        ], dividechars=4)
         return Pile([
-            password_input,
-            confirm_password_input
+            Columns([
+                ("weight", 0.2, Text("Password", align="right")),
+                ("weight", 0.3,
+                 Color.string_input(self.inputs['settings']['password'],
+                                    focus_map="string_input focus"))
+            ], dividechars=4),
+            Columns([
+                ("weight", 0.2, Text("Confirm Password", align="right")),
+                ("weight", 0.3, Color.string_input(
+                    self.confirm_password,
+                    focus_map="string_input focus"))
+            ], dividechars=4)
         ])
 
-    def _set_password_info(self, msg):
-        existing_text = self.password_info.get_text()[0]
-        self.password_info.set_text(
-            "{}: {}".format(existing_text, msg))
+    def _set_password_info(self, msg=None):
+        text = self.password_info
+        if msg:
+            self.password_info.set_text((text, ('error_major', msg)))
+            self.signal.emit_signal('refresh')
 
-    def done(self, result):
-        result = {
-            "password": self.password.value,
-            "confirm_password": self.confirm_password.value
-        }
-        if result['password'] != result['confirm_password']:
+    def done(self, button):
+        password = self.inputs['settings']['password'].value
+        confirm_password = self.confirm_password.value
+
+        if password != confirm_password:
             self._set_password_info("Passwords do not match.")
+        elif not password or not confirm_password:
+            self._set_password_info("Password can not be blank")
+        elif password.isdigit():
+            self._set_password_info(
+                "Password must contain a mix of letters and number")
         else:
-            self.signal.emit_signal('install:single:start', result)
+            self.signal.emit_signal('install:single:start', self.inputs)
 
     def cancel(self, button):
         self.signal.emit_signal(self.model.get_previous_signal)

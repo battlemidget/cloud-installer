@@ -27,7 +27,12 @@ import logging
 log = logging.getLogger('subiquity.ui.frame')
 
 # COMMON
-key_conversion_map = {'tab': 'down', 'shift tab': 'up'}
+key_conversion_map = {
+    'ctrl n': 'down',
+    'ctrl p': 'up',
+    'tab': 'down',
+    'shift tab': 'up'
+}
 
 
 class OpenstackInstallUI(WidgetWrap):

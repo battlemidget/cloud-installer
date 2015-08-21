@@ -19,13 +19,16 @@ Contains some default key navigations
 """
 
 from urwid import WidgetWrap
+import logging
+
+log = logging.getLogger("cloudinstall.viewpolicy")
 
 
 class ViewPolicy(WidgetWrap):
     def keypress(self, size, key):
+        log.debug("policy keypress: {}".format(key))
         if key == 'esc':
             self.signal.emit_signal(self.model.get_previous_signal)
-        if key == 'Q' or key == 'q' or key == 'ctrl c':
-            self.signal.register_signals('quit')
+        if key == 'ctrl w':
             self.signal.emit_signal('quit')
         super().keypress(size, key)

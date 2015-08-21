@@ -34,8 +34,7 @@ class EventLoop:
         self.loop = self._build_loop()
 
     def header_hotkeys(self, key):
-        if key in ['q', 'Q']:
-            self.exit(0)
+        pass
 
     def exit(self):
         raise urwid.ExitMainLoop()

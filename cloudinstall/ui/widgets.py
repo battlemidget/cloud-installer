@@ -19,3 +19,5 @@ from functools import partial
 Password = partial(PasswordEditor, caption="")
 ConfirmPassword = partial(PasswordEditor, caption="")
 OpenstackRelease = partial(Selector, opts=['liberty', 'kilo', 'juno'])
+
+PlainStringEditor = partial(StringEditor, caption="")
