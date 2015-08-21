@@ -37,7 +37,7 @@ class SingleInstallProgressView(ViewPolicy):
         self.current_task = Text("")
         body = [
             Padding.center_79(Columns([
-                ("weight", 0.5, Text("Progress:")),
+                ("weight", 0.2, Text("Progress:")),
                 self.current_task
             ], dividechars=5)),
         ]

@@ -131,18 +131,17 @@ def load_charm_byname(name):
     return import_module('cloudinstall.charms.{}'.format(name))
 
 
-def render_charm_config_async():
-    return Async.pool.submit(render_charm_config)
+def render_charm_config_async(config):
+    return Async.pool.submit(render_charm_config, config)
 
 
-def render_charm_config():
+def render_charm_config(config):
     """ Render a config for setting charm config options
 
     If a custom charm config is passed on the cli it will
     attempt to merge those additional settings without losing
     any pre-existing charm options.
     """
-    config = read_ini_existing()
     charm_conf = load_template('charmconf.yaml')
     template_args = dict(
         install_type=config['settings']['install_type'],

@@ -37,9 +37,11 @@ class ErrorView(ViewPolicy):
         self.signal = signal
         self.error = error
         body = [
-            Text("Oops, there was a problem with your install"),
+            Padding.center_95(
+                Text("Oops, there was a problem with your install:")),
             Padding.line_break(""),
-            Padding.center_79(Color.error_major(Text(self.error))),
+            Padding.center_79(
+                Color.error_major(Text("Reason: {}".format(self.error)))),
             Padding.center_20(self._build_buttons())
         ]
         super().__init__(ListBox(body))
@@ -47,7 +49,7 @@ class ErrorView(ViewPolicy):
     def _build_buttons(self):
         buttons = [
             Color.button_secondary(
-                cancel_btn(on_press=self.cancel),
+                cancel_btn(label="Quit", on_press=self.cancel),
                 focus_map="button_secondary focus")
         ]
         return Pile(buttons)

@@ -127,7 +127,7 @@ class SingleInstallController(ControllerPolicy):
         future_complete_f.add_done_callback(self._set_charmconfig)
 
     def _set_charmconfig(self, future):
-        render_charmconf_f = utils.render_charm_config_async()
+        render_charmconf_f = utils.render_charm_config_async(self.config)
         render_charmconf_f.add_done_callback(
             partial(self.wait_for_task, msg="Defining charm config"))
 
@@ -161,7 +161,8 @@ class SingleInstallController(ControllerPolicy):
         future_complete_f.add_done_callback(self._start_container)
 
     def _start_container(self, future):
-        lxc_logfile = os.path.join(self.config.cfg_path, 'lxc.log')
+        lxc_logfile = os.path.join(
+            self.config['settings']['cfg_path'], 'lxc.log')
         start_container_f = self.api.start_container_async(lxc_logfile)
         start_container_f.add_done_callback(
             partial(self.wait_for_task, msg="Starting Container"))
@@ -171,7 +172,8 @@ class SingleInstallController(ControllerPolicy):
         future_complete_f.add_done_callback(self._wait_for_container)
 
     def _wait_for_container(self, future):
-        lxc_logfile = os.path.join(self.config.cfg_path, 'lxc.log')
+        lxc_logfile = os.path.join(
+            self.config['settings']['cfg_path'], 'lxc.log')
         Container.wait_checked(self.container_name, lxc_logfile)
         tries = 0
         while not self.cloud_init_finished(tries):
@@ -253,8 +255,6 @@ class SingleInstallController(ControllerPolicy):
         log.debug("Starting status screen.")
         # Save our config before moving on to dashboard
         utils.write_ini(self.config)
-
-        self.sp_view.set_current_task('bootstrap')
         cloud_status_bin = ['openstack-status']
         juju_home = self.config['settings.juju']['home_expanded']
         Container.run(self.container_name,
@@ -284,6 +284,7 @@ class SingleInstallController(ControllerPolicy):
         self.sp_view = SingleInstallProgressView(self.model,
                                                  self.signal)
         self.ui.set_body(self.sp_view)
+
         # Process first step
         ensure_nested_kvm_f = self.api.ensure_nested_kvm_async()
         ensure_nested_kvm_f.add_done_callback(
