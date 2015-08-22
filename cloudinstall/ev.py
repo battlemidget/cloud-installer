@@ -26,9 +26,8 @@ class EventLoop:
     """ Abstracts out event loop
     """
 
-    def __init__(self, ui, config, log):
+    def __init__(self, ui, log):
         self.ui = ui
-        self.config = config
         self.log = log
         self.error_code = 0
         self.loop = self._build_loop()

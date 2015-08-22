@@ -42,27 +42,13 @@ class SingleInstallView(ViewPolicy):
             'settings': {
                 'password': Password(),
                 'install_only': PlainStringEditor(edit_text="no"),
-                'use_upstream_ppa': PlainStringEditor(edit_text="no"),
-                'upstream_ppa': PlainStringEditor(),
-                'apt_mirror': PlainStringEditor(),
-                'upstream_deb': PlainStringEditor()
             },
             'settings.proxy': {
                 'http_proxy': PlainStringEditor(),
-                'https_proxy': PlainStringEditor(),
-                'apt_proxy': PlainStringEditor(),
-                'apt_https_proxy': PlainStringEditor(),
-                'no_proxy': PlainStringEditor()
+                'https_proxy': PlainStringEditor()
             },
             'settings.openstack': {
-                'tip': PlainStringEditor(edit_text="no"),
-                'release': PlainStringEditor(edit_text="kilo"),
-                'use_next_charms': PlainStringEditor(edit_text="no"),
-                'use_nclxd': PlainStringEditor(edit_text="no")
-            },
-            'settings.image_sync': {
-                'release': PlainStringEditor(edit_text="trusty"),
-                'arch': PlainStringEditor(edit_text="amd64")
+                'release': PlainStringEditor(edit_text="kilo")
             }
         }
 
@@ -106,7 +92,7 @@ class SingleInstallView(ViewPolicy):
             rows.append(Padding.center_50(Columns([
                 ("weight",
                  0.2,
-                 Text(k.replace("_", " ").capitalize(),
+                 Text(k.replace("_", " "),
                       align="right")),
                 ("weight",
                  0.3,
@@ -120,9 +106,7 @@ class SingleInstallView(ViewPolicy):
             ("Proxy", "Define your HTTP/S APT/S proxy settings",
              "settings.proxy"),
             ("OpenStack", "Settings specific to how OpenStack is deployed",
-             "settings.openstack"),
-            ("Glance", "Settings for the Glance Simplestreams Sync charm",
-             "settings.image_sync")
+             "settings.openstack")
         ]
         return Pile([self.gen_inputs(label, desc, k)
                      for label, desc, k in sections])

@@ -47,7 +47,7 @@ class UtilsException(Exception):
     pass
 
 
-def cleanup(cfg):
+def cleanup():
     pid = os.path.join(install_home(), '.cloud-install/openstack.pid')
     if os.path.isfile(pid):
         os.remove(pid)
@@ -144,35 +144,35 @@ def render_charm_config(config):
     """
     charm_conf = load_template('charmconf.yaml')
     template_args = dict(
-        install_type=config['settings']['install_type'],
-        openstack_password=config['settings']['password'])
+        install_type=config.get('settings', 'install_type'),
+        openstack_password=config.get('settings', 'password'))
 
-    openstack_settings = config['settings.openstack']
+    openstack_settings = config.get('settings.openstack')
     if openstack_settings['tip']:
         template_args['tip'] = openstack_settings['tip']
     template_args['openstack_release'] = openstack_settings['release']
 
-    ubuntu_series = config['settings.juju']['series']
+    ubuntu_series = config.get('settings.juju', 'series')
     openstack_release = openstack_settings['release']
     openstack_origin = ("cloud:{}-{}".format(ubuntu_series,
                                              openstack_release))
 
     template_args['openstack_origin'] = openstack_origin
 
-    if config['settings']['install_type'] == 'Single':
+    if config.get('settings', 'install_type') == 'Single':
         template_args['worker_multiplier'] = '1'
 
     # add http proxy settings - should not be necessary as juju sets
     # these in the charm execution environment, but required for
     # openstack-origin-git. See: https://launchpad.net/bugs/1472357
 
-    http_proxy = config['settings.proxy']['http_proxy']
-    https_proxy = config['settings.proxy']['https_proxy']
+    http_proxy = config.get('settings.proxy', 'http_proxy')
+    https_proxy = config.get('settings.proxy', 'https_proxy')
     template_args['http_proxy'] = http_proxy
     template_args['https_proxy'] = https_proxy
 
     charm_conf_modified = charm_conf.render(**template_args)
-    dest_yaml_path = os.path.join(config['settings']['cfg_path'],
+    dest_yaml_path = os.path.join(config.get('settings', 'cfg_path'),
                                   'charmconf.yaml')
     spew(dest_yaml_path, charm_conf_modified)
 
@@ -661,7 +661,7 @@ def download_url(url, output_file):
 
 def update_environments_yaml(config, key, val, provider='local'):
     """ updates environments.yaml base file """
-    env_path = config['settings.juju']['environments_path']
+    env_path = config.get('settings.juju', 'environments_yaml')
     if os.path.exists(env_path):
         with open(env_path) as f:
             _env_yaml_raw = f.read()
@@ -680,8 +680,8 @@ def update_environments_yaml(config, key, val, provider='local'):
 def juju_env(config):
     """ parses current juju environment """
     env_file = None
-    settings = config['settings']
-    juju_path = config['settings.juju']['path']
+    settings = config.get('settings')
+    juju_path = config.get('settings.juju', 'path')
     if "Single" in settings['install_type']:
         env_file = 'local.jenv'
 

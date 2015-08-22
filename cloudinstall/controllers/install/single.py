@@ -16,10 +16,10 @@
 """ Single Install Controller """
 
 import logging
-import os
 from subprocess import check_output, STDOUT
 from tornado.gen import coroutine
 from cloudinstall import utils, netutils
+from cloudinstall.config import Config
 from cloudinstall.api.container import Container
 from cloudinstall.controller import ControllerPolicy
 from cloudinstall.models import SingleInstallModel
@@ -38,13 +38,12 @@ class SingleInstallControllerException(Exception):
 
 class SingleInstallController(ControllerPolicy):
 
-    def __init__(self, ui, signal, config):
+    def __init__(self, ui, signal):
         self.ui = ui
         self.signal = signal
-        self.config = config
         self.model = SingleInstallModel()
-        self.api = SingleInstallAPI(self.config)
-        self.container_name = self.config['settings.single']['container_name']
+        self.api = SingleInstallAPI()
+        self.container_name = Config.get('settings.single', 'container_name')
 
     def _read_container_status(self):
         return check_output("lxc-info -n {} -s "
@@ -71,64 +70,80 @@ class SingleInstallController(ControllerPolicy):
         if msg:
             log.debug("Task: {}".format(msg))
             self.sp_view.set_current_task(msg)
-        # self.ui.set_body(ErrorView(self.model,
-        #                            self.signal,
-        #                            e))
 
     @coroutine
     def ensure_kvm(self):
-        self.print_task("1 ensuring kvm loaded")
         try:
             yield self.api.ensure_nested_kvm_async()
-        except:
-            log.error("problem with ensure kvm")
-        self.ssh_genkey()
+            self.ssh_genkey()
+        except Exception as e:
+            self.ui.set_body(ErrorView(self.model,
+                                       self.signal,
+                                       e))
 
     @coroutine
     def ssh_genkey(self):
-        self.print_task("2 genkey")
         try:
             yield utils.ssh_genkey_async()
-        except:
-            log.error("problem with genkey")
-        self.set_apt_proxy()
+            self.set_apt_proxy()
+        except Exception as e:
+            self.ui.set_body(ErrorView(self.model,
+                                       self.signal,
+                                       e))
 
     @coroutine
     def set_apt_proxy(self):
-        self.print_task("3 apt proxy")
         try:
             yield self.api.set_apt_proxy_async()
+            self.set_userdata()
         except Exception as e:
-            log.exception(e)
-        self.set_userdata()
+            self.ui.set_body(ErrorView(self.model,
+                                       self.signal,
+                                       e))
 
     @coroutine
     def set_userdata(self):
-        self.print_task("4 userdata")
-        yield self.api.set_userdata_async()
-        self.set_charmconfig()
+        try:
+            yield self.api.set_userdata_async()
+            self.set_charmconfig()
+        except Exception as e:
+            self.ui.set_body(ErrorView(self.model,
+                                       self.signal,
+                                       e))
 
     @coroutine
     def set_charmconfig(self):
-        self.print_task("5 charmconfig")
-        yield utils.render_charm_config_async(self.config)
-        self.set_juju()
+        try:
+            yield utils.render_charm_config_async(Config)
+            self.set_juju()
+        except Exception as e:
+            self.ui.set_body(ErrorView(self.model,
+                                       self.signal,
+                                       e))
 
     @coroutine
     def set_juju(self):
-        self.print_task("6 juju")
-        yield self.api.set_juju_async()
-        self.set_perms()
+        try:
+            yield self.api.set_juju_async()
+            self.set_perms()
+        except Exception as e:
+            self.ui.set_body(ErrorView(self.model,
+                                       self.signal,
+                                       e))
 
     @coroutine
     def set_perms(self):
-        self.print_task("7 perms")
-        yield self.api.set_perms_async()
-        self.set_create_container()
+        try:
+            yield self.api.set_perms_async()
+            self.set_create_container()
+        except Exception as e:
+            self.ui.set_body(ErrorView(self.model,
+                                       self.signal,
+                                       e))
 
     @coroutine
     def set_create_container(self):
-        self.print_task("8 create container")
+        self.print_task("Creating Host Container")
         try:
             yield self.api.create_container_async()
             self.set_copy_host_ssh()
@@ -139,38 +154,44 @@ class SingleInstallController(ControllerPolicy):
 
     @coroutine
     def set_copy_host_ssh(self):
-        self.print_task("13 copy host ssh")
-        yield self.api.copy_host_ssh_to_container_async()
-        self.set_upstream_deb()
+        self.print_task("Copying ssh keys")
+        try:
+            yield self.api.copy_host_ssh_to_container_async()
+            self.set_upstream_deb()
+        except Exception as e:
+            self.ui.set_body(ErrorView(self.model,
+                                       self.signal,
+                                       e))
 
     @coroutine
     def set_upstream_deb(self):
-        self.print_task("14 upstream deb")
-        upstream_deb = self.config['settings.single']['upstream_deb_path']
-        if upstream_deb:
-            yield self.api.copy_upstream_deb_async()
-            yield self.api.install_upstream_deb_async()
-        self.set_install_only()
+        try:
+            upstream_deb = Config.get('settings.single', 'upstream_deb_path')
+            if upstream_deb:
+                self.print_task("Setting local debian package")
+                yield self.api.copy_upstream_deb_async()
+                yield self.api.install_upstream_deb_async()
+            self.set_install_only()
+        except Exception as e:
+            self.ui.set_body(ErrorView(self.model,
+                                       self.signal,
+                                       e))
 
     def set_install_only(self):
-        self.print_task("15 install only")
         # Close out loop if install only
         self.print_task("Checking if we should stop for --install-only")
-        if self.config['settings']['install_only']:
+        if Config.getboolean('settings', 'install_only'):
             log.info("Done installing, stopping here per --install-only.")
-            self.config['settings']['install_only'] = "yes"
-            utils.write_ini(self.config)
+            Config.set('settings', 'install_only', "yes")
             self.signal.emit_signal('quit')
         return self.set_juju_proxy()
 
     def set_juju_proxy(self):
-        self.print_task("16 juju proxy")
         #  Update jujus no-proxy setting if applicable
-        self.print_task("Writing juju proxy settings if applicable")
-        proxy = self.config['settings.proxy']
+        proxy = Config.get('settings.proxy')
         if proxy['http_proxy'] or proxy['https_proxy']:
             log.info("Updating juju environments for proxy support")
-            lxc_net = self.config['settings.single']['lxc_network']
+            lxc_net = Config.get('settings.single', 'lxc_network')
             utils.update_environments_yaml(
                 key='no-proxy',
                 val='{},localhost,{}'.format(
@@ -179,11 +200,9 @@ class SingleInstallController(ControllerPolicy):
         return self.start_status()
 
     def start_status(self):
-        self.print_task("17 Starting status screen.")
         # Save our config before moving on to dashboard
-        utils.write_ini(self.config)
         cloud_status_bin = ['openstack-status']
-        juju_home = self.config['settings.juju']['home_expanded']
+        juju_home = Config.get('settings.juju', 'home_expanded')
         Container.run(self.container_name,
                       "{0} juju --debug bootstrap".format(juju_home),
                       use_ssh=True)
@@ -192,7 +211,7 @@ class SingleInstallController(ControllerPolicy):
             "{0} juju status".format(juju_home),
             use_ssh=True)
         Container.run_status(
-            self.container_name, " ".join(cloud_status_bin), self.config)
+            self.container_name, " ".join(cloud_status_bin), Config)
 
     def single(self):
         """ Start prompting for Single Install information
@@ -201,8 +220,7 @@ class SingleInstallController(ControllerPolicy):
         excerpt = ("Please fill out the input fields to continue with "
                    "the single installation. See `man openstack-config`")
         self.ui.set_header(title, excerpt)
-        use_advanced = self.config['runtime'].getboolean(
-            'advanced_config', False)
+        use_advanced = Config.getboolean('runtime', 'advanced_config')
         self.ui.set_body(SingleInstallView(self.model,
                                            self.signal,
                                            use_advanced))
@@ -211,18 +229,16 @@ class SingleInstallController(ControllerPolicy):
         """ Start single install, processing opts
         """
         password = opts['settings']['password'].value
-        self.config['settings']['password'] = password
+        Config.set('settings', 'password', password)
         log.info("Password entered, saving {}".format(
-            self.config['settings']['password']))
+            Config.get('settings', 'password')))
 
-        if self.config['runtime'].getboolean('advanced_config', False):
+        if Config.getboolean('runtime', 'advanced_config'):
             log.info("Saving rest of advanced configuration settings.")
             for k in opts.keys():
                 for a, b in opts[k].items():
-                    self.config[k][a] = b.value
-                    log.debug("Saved {}({}): {}".format(k,
-                                                        a,
-                                                        self.config[k][a]))
+                    log.debug("Saving ['{}']['{}'] = {}".format(k, a, b.value))
+                    Config.set(k, a, b.value)
         log.info("Starting a single installation.")
 
         title = "Single installation progress"

@@ -1,5 +1,4 @@
-#
-# Copyright 2014 Canonical, Ltd.
+# Copyright 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -14,9 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
-import yaml
 import cloudinstall.utils as utils
+from os import path
 import logging
 
 
@@ -62,86 +60,101 @@ class Config:
     #      'white', 'dark gray')
     # ]
 
-    def __init__(self, cfg_obj):
-        if os.getenv("FAKE_API_DATA"):
-            self._juju_env = {"bootstrap-config": {'name': "fake",
-                                                   'maas-server': "FAKE"}}
-        else:
-            self._juju_env = None
-        self.cfg_obj = cfg_obj
+    _config = None
 
-    def save(self, path):
-        """ Saves configuration """
-        try:
-            with open(path, 'w') as config:
-                self.cfg_obj.write(config)
-        except IOError:
-            raise ConfigException("Unable to save configuration.")
+    # give some sense of protecting the config
+    known_config_keys = [
+        'admin_email',
+        'admin_name',
+        'advanced_config',
+        'api_key',
+        'api_password',
+        'apt_https_proxy',
+        'apt_mirror',
+        'apt_proxy',
+        'arch',
+        'bin',
+        'cfg_file',
+        'cfg_path',
+        'charm_config',
+        'charm_plugin_path',
+        'container_ip',
+        'container_name',
+        'environments_path',
+        'headless',
+        'home',
+        'home_expanded',
+        'http_proxy',
+        'https_proxy',
+        'image_metadata_url',
+        'install_only',
+        'install_type',
+        'level',
+        'lxc_network',
+        'next_charms',
+        'no_proxy',
+        'password',
+        'path',
+        'pidfile',
+        'placements_file',
+        'release',
+        'series',
+        'server',
+        'share',
+        'tip',
+        'tmpl',
+        'tools_metadata_url',
+        'upstream_deb_path',
+        'upstream_ppa',
+        'use_nclxd',
+        'use_upstream_ppa',
+    ]
 
-    def pidfile(self):
-        return os.path.join(self.cfg_path, 'openstack.pid')
-
-    @property
-    def share_path(self):
-        """ base share path
-        """
-        return "/usr/share/openstack"
-
-    @property
-    def tmpl_path(self):
-        """ template path """
-        return os.path.join(self.share_path, "templates")
-
-    @property
-    def cfg_path(self):
-        """ top level configuration path """
-        return os.path.join(utils.install_home(), '.cloud-install')
-
-    @property
-    def cfg_file(self):
-        if self._cfg_file is None:
-            return os.path.join(self.cfg_path, 'config.yaml')
-        else:
-            return self._cfg_file
-
-    @property
-    def bin_path(self):
-        """ scripts located in non-default system path """
-        return os.path.join(self.share_path, "bin")
-
-    @property
-    def placements_filename(self):
-        return os.path.join(self.cfg_path, 'placements.yaml')
-
-    def setopt(self, key, val):
+    @classmethod
+    def set(cls, section, key, val):
         """ sets config option """
+        if key not in Config.known_config_keys:
+            raise Exception(
+                "Tried to set a value on unknown key: {}".format(key))
+        Config.reload()
         try:
-            self._config[key] = val
-            self.save()
+            Config._config[section][key] = val
+            Config.save()
         except Exception as e:
-            log.error("Failed to set {} in config: {}".format(key, e))
+            log.exception(
+                "Failed to set {} to section {} option {}: {}".format(
+                    val, section, key, e))
+            raise e
 
-    def getopt(self, key):
-        if key in self._config:
-            return self._config[key]
-        else:
-            if hasattr(self, key):
-                attr = getattr(self, key)
-                return attr() if callable(attr) else attr
-            return False
+    @classmethod
+    def get(cls, section, key=None):
+        Config.reload()
+        try:
+            if key is None:
+                return Config._config[section]
+            return Config._config[section].get(key, None)
+        except Exception as e:
+            log.exception("Failed to read section {} option {}: {}".format(
+                section, key, e))
+            raise e
 
-    def juju_path(self):
-        """ Returns path where juju environments reside """
-        if not self.cfg_obj['settings.juju']['path']:
-            self.cfg_obj['settings.juju']['path'] = os.path.join(
-                self.cfg_path, 'juju')
-        return self.cfg_obj['settings.juju']['path']
+    @classmethod
+    def getboolean(cls, section, key):
+        try:
+            return Config._config[section].getboolean(key, False)
+        except Exception as e:
+            log.exception("Failed to read section {} option {}: {}".format(
+                section, key, e))
+            raise e
 
-    def juju_home(self, use_expansion=False):
-        """ A string representing JUJU_HOME """
-        if use_expansion:
-            cfg_base = os.path.basename(self.cfg_path)
-            home_path = "~/{0}/juju".format(cfg_base)
-        else:
-            home_path = self.juju_path()
-        return "JUJU_HOME={}".format(home_path)
+    @classmethod
+    def save(cls):
+        try:
+            utils.write_ini(Config._config)
+        except Exception as e:
+            log.exception("Failed to save config: {}".format(e))
+            raise e
+
+    @classmethod
+    def reload(cls):
+        Config._config = utils.read_ini_existing()

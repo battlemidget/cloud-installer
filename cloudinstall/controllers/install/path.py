@@ -15,7 +15,7 @@
 
 import logging
 
-import cloudinstall.utils as utils
+from cloudinstall.config import Config
 from cloudinstall.controller import ControllerPolicy
 from cloudinstall.models import InstallPathModel
 from cloudinstall.ui.views.install import InstallPathView
@@ -30,11 +30,10 @@ class InstallPathControllerException(Exception):
 class InstallPathController(ControllerPolicy):
     """ Presents user with install selection type
     """
-    def __init__(self, ui, signal, config):
+    def __init__(self, ui, signal):
         self.ui = ui
         self.signal = signal
         self.model = InstallPathModel()
-        self.config = config
 
     def install(self):
         """ load install path view """
@@ -47,8 +46,5 @@ class InstallPathController(ControllerPolicy):
 
     def set_install_type(self, result):
         """ Stores install selection type and writes config """
-        self.config['settings']['install_type'] = result
+        Config.set('settings', 'install_type', result)
         log.debug("Set install type {} in config".format(result))
-        utils.write_ini(self.config)
-        log.info("Install type selected {}, saving.".format(
-            self.config['settings']['install_type']))

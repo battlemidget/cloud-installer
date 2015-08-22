@@ -18,6 +18,7 @@ log output, and where to file a bug.
 """
 
 import logging
+import traceback
 from urwid import (Pile, Text, ListBox)
 from cloudinstall.view import ViewPolicy
 from cloudinstall.ui.buttons import cancel_btn
@@ -36,17 +37,18 @@ class ErrorView(ViewPolicy):
         self.model = model
         self.signal = signal
         self.error = error
+        tb = traceback.format_exc()
         bug_url = ("https://github.com/Ubuntu-Solutions-Engineering"
                    "/openstack-installer/issues/new")
         body = [
             Padding.center_95(
                 Text("Oops, there was a problem with your install:")),
             Padding.line_break(""),
-            Padding.center_79(
-                Color.error_major(Text("Reason: {}".format(self.error)))),
+            Padding.center_85(Text("Reason:")),
+            Padding.center_80(Color.error_major(Text(tb))),
             Padding.line_break(""),
             Padding.center_95(
-                Text("Please file a bug with the output of "
+                Text("Please file a bug with the above output and of "
                      "~/.cloud-install/*.log at {}".format(bug_url))),
             Padding.line_break(""),
             Padding.center_20(self._build_buttons())

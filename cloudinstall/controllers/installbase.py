@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-import cloudinstall.utils as utils
 from cloudinstall.signals import Signal
 from cloudinstall.controllers.install import (InstallPathController,
                                               SingleInstallController)
@@ -28,16 +27,13 @@ class InstallController:
 
     def __init__(self, ui, loop):
         self.ui = ui
-        self.config = utils.read_ini_existing()
         self.loop = loop
         self.signal = Signal()
         self.controllers = {
             "installpath": InstallPathController(self.ui,
-                                                 self.signal,
-                                                 self.config),
+                                                 self.signal),
             "singleinstall": SingleInstallController(self.ui,
-                                                     self.signal,
-                                                     self.config)
+                                                     self.signal)
         }
         self._connect_base_signals()
 

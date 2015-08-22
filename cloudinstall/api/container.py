@@ -24,9 +24,9 @@ import pty
 import os
 import codecs
 import errno
+import lxc
 from collections import deque
 from cloudinstall import utils
-from cloudinstall.async import Async
 
 log = logging.getLogger("cloudinstall.api.container")
 
@@ -45,14 +45,12 @@ class Container:
     @classmethod
     def ip(cls, name):
         try:
-            ips = check_output("sudo lxc-info -n {} -i -H".format(name),
-                               shell=True)
-            ips = ips.split()
-            log.debug("lxc-info found: '{}'".format(ips))
+            c = lxc.Container(name)
+            ips = c.get_ips()
             if len(ips) == 0:
                 raise NoContainerIPException()
-            log.debug("using {} as the container ip".format(ips[0].decode()))
-            return ips[0].decode()
+            log.debug("using {} as the container ip".format(ips[0]))
+            return ips[0]
         except CalledProcessError:
             log.exception("error calling lxc-info to get container IP")
             raise NoContainerIPException()
@@ -65,84 +63,87 @@ class Container:
         :param str cmd: command to run
         """
 
-        if use_ssh:
-            ip = cls.ip(name)
-            quoted_cmd = shlex.quote(cmd)
-            wrapped_cmd = ("sudo -H -u {3} TERM=xterm256-color ssh -t -q "
-                           "-l ubuntu -o \"StrictHostKeyChecking=no\" "
-                           "-o \"UserKnownHostsFile=/dev/null\" "
-                           "-o \"ControlMaster=auto\" "
-                           "-o \"ControlPersist=600\" "
-                           "-i {2} "
-                           "{0} {1}".format(ip, quoted_cmd,
-                                            utils.ssh_privkey(),
-                                            utils.install_user()))
-        else:
-            ip = "-"
-            quoted_cmd = cmd
-            wrapped_cmd = ("lxc-attach -n {container_name} -- "
-                           "{cmd}".format(container_name=name,
-                                          cmd=cmd))
+        c = lxc.Container(name)
+        quoted_cmd = shlex.split(cmd)
+        ret = c.attach_wait(lxc.attach_run_command, quoted_cmd)
+        if ret > 0:
+            raise ContainerRunException(
+                "Failed to run: {}".format(quoted_cmd))
+        return
 
-        stdoutmaster, stdoutslave = pty.openpty()
-        subproc = subprocess.Popen(wrapped_cmd, shell=True,
-                                   stdout=stdoutslave,
-                                   stderr=subprocess.PIPE)
-        os.close(stdoutslave)
-        decoder = codecs.getincrementaldecoder('utf-8')()
+        # if use_ssh:
+        #     ip = cls.ip(name)
+        #     quoted_cmd = shlex.quote(cmd)
+        #     wrapped_cmd = ("sudo -H -u {3} TERM=xterm256-color ssh -t -q "
+        #                    "-l ubuntu -o \"StrictHostKeyChecking=no\" "
+        #                    "-o \"UserKnownHostsFile=/dev/null\" "
+        #                    "-o \"ControlMaster=auto\" "
+        #                    "-o \"ControlPersist=600\" "
+        #                    "-i {2} "
+        #                    "{0} {1}".format(ip, quoted_cmd,
+        #                                     utils.ssh_privkey(),
+        #                                     utils.install_user()))
+        # else:
 
-        def last_ten_lines(s):
-            chunk = s[-1500:]
-            lines = chunk.splitlines(True)
-            return ''.join(lines[-10:]).replace('\r', '')
+        # stdoutmaster, stdoutslave = pty.openpty()
+        # subproc = subprocess.Popen(wrapped_cmd, shell=True,
+        #                            stdout=stdoutslave,
+        #                            stderr=subprocess.PIPE)
+        # os.close(stdoutslave)
+        # decoder = codecs.getincrementaldecoder('utf-8')()
 
-        decoded_output = ""
-        try:
-            while subproc.poll() is None:
-                try:
-                    b = os.read(stdoutmaster, 512)
-                except OSError as e:
-                    if e.errno != errno.EIO:
-                        raise
-                    break
-                else:
-                    final = False
-                    if not b:
-                        final = True
-                    decoded_chars = decoder.decode(b, final)
-                    if decoded_chars is None:
-                        continue
+        # def last_ten_lines(s):
+        #     chunk = s[-1500:]
+        #     lines = chunk.splitlines(True)
+        #     return ''.join(lines[-10:]).replace('\r', '')
 
-                    decoded_output += decoded_chars
-                    if output_cb:
-                        ls = last_ten_lines(decoded_output)
+        # decoded_output = ""
+        # try:
+        #     while subproc.poll() is None:
+        #         try:
+        #             b = os.read(stdoutmaster, 512)
+        #         except OSError as e:
+        #             if e.errno != errno.EIO:
+        #                 raise
+        #             break
+        #         else:
+        #             final = False
+        #             if not b:
+        #                 final = True
+        #             decoded_chars = decoder.decode(b, final)
+        #             if decoded_chars is None:
+        #                 continue
 
-                        output_cb(ls)
-                    if final:
-                        break
-        finally:
-            os.close(stdoutmaster)
-            if subproc.poll() is None:
-                subproc.kill()
-            subproc.wait()
+        #             decoded_output += decoded_chars
+        #             if output_cb:
+        #                 ls = last_ten_lines(decoded_output)
 
-        errors = [l.decode('utf-8') for l in subproc.stderr.readlines()]
-        if output_cb:
-            output_cb(last_ten_lines(decoded_output))
+        #                 output_cb(ls)
+        #             if final:
+        #                 break
+        # finally:
+        #     os.close(stdoutmaster)
+        #     if subproc.poll() is None:
+        #         subproc.kill()
+        #     subproc.wait()
 
-        errors = ''.join(errors)
+        # errors = [l.decode('utf-8') for l in subproc.stderr.readlines()]
+        # if output_cb:
+        #     output_cb(last_ten_lines(decoded_output))
 
-        if subproc.returncode == 0:
-            return decoded_output.strip()
-        else:
-            log.debug("Error with command: "
-                      "[Output] '{}' [Error] '{}'".format(
-                          decoded_output.strip(),
-                          errors.strip()))
+        # errors = ''.join(errors)
 
-            raise ContainerRunException("Problem running {0} in container "
-                                        "{1}:{2}".format(quoted_cmd, name, ip),
-                                        subproc.returncode)
+        # if subproc.returncode == 0:
+        #     return decoded_output.strip()
+        # else:
+        #     log.debug("Error with command: "
+        #               "[Output] '{}' [Error] '{}'".format(
+        #                   decoded_output.strip(),
+        #                   errors.strip()))
+
+        #     raise ContainerRunException("Problem running {0} in container "
+        #                                 "{1}:{2}".format(quoted_cmd, name, ip),
+        #                                 subproc.returncode)
 
     @classmethod
     def run_status(cls, name, cmd, config):
@@ -193,7 +194,6 @@ class Container:
         # ubuntu template's image cache and forces a re-download. It
         # should be removed after https://github.com/lxc/lxc/issues/381 is
         # resolved.
-        log.debug("API: Create container: {}, {}".format(name, userdata))
         flushflag = "-F"
         if os.getenv("USE_LXC_IMAGE_CACHE"):
             log.debug("USE_LXC_IMAGE_CACHE set, so not flushing in lxc-create")
@@ -215,14 +215,12 @@ class Container:
 
         :param str name: name of container
         """
-        out = utils.get_command_output(
-            'sudo lxc-start -n {0} -d -o {1}'.format(name,
-                                                     lxc_logfile))
+        c = lxc.Container(name)
+        is_started = c.start()
 
-        if out['status'] > 0:
-            raise Exception("Unable to start container: "
-                            "{0}".format(out['output']))
-        return out['status']
+        if not is_started:
+            raise Exception("Unable to start container")
+        return is_started
 
     @classmethod
     def stop(cls, name):
@@ -230,14 +228,12 @@ class Container:
 
         :param str name: name of container
         """
-        out = utils.get_command_output(
-            'sudo lxc-stop -n {0}'.format(name))
+        c = lxc.Container(name)
+        ret = c.stop()
 
-        if out['status'] > 0:
-            raise Exception("Unable to stop container: "
-                            "{0}".format(out['output']))
-
-        return out['status']
+        if ret > 0:
+            raise Exception("Unable to stop container")
+        return ret
 
     @classmethod
     def destroy(cls, name):
@@ -255,7 +251,7 @@ class Container:
         return out['status']
 
     @classmethod
-    def wait_checked(cls, name, check_logfile, interval=20):
+    def wait_checked(cls, name, check_logfile, interval=60):
         """waits for container to be in RUNNING state, checking
         'check_logfile' every 'interval' seconds for error messages.
 
@@ -265,19 +261,20 @@ class Container:
         returns when the container 'name' is in RUNNING state.
         raises an exception if errors are detected.
         """
-        while True:
-            out = utils.get_command_output('sudo lxc-wait -n {} -s RUNNING '
-                                           '-t {}'.format(name, interval))
-            if out['status'] == 0:
-                return
-            log.debug("{} not RUNNING after {} seconds, "
-                      "checking '{}' for errors".format(name, interval,
-                                                        check_logfile))
-            grepout = utils.get_command_output(
-                'grep -q ERROR {}'.format(check_logfile))
-            if grepout['status'] == 0:
-                raise Exception("Error detected starting container. See {} "
-                                "for details.".format(check_logfile))
+        c = lxc.Container(name)
+        not_started = True
+        while not_started:
+            if not c.get_ips(timeout=interval):
+                continue
+            not_started = False
+            # log.debug("{} not RUNNING after {} seconds, "
+            #           "checking '{}' for errors".format(name, interval,
+            #                                             check_logfile))
+            # grepout = utils.get_command_output(
+            #     'grep -q ERROR {}'.format(check_logfile))
+            # if grepout['status'] == 0:
+            #     raise Exception("Error detected starting container. See {} "
+            #                     "for details.".format(check_logfile))
         return
 
     @classmethod
@@ -286,9 +283,10 @@ class Container:
 
         :param str name: name of container
         """
-        out = utils.get_command_output(
-            'sudo lxc-wait -n {0} -s RUNNING'.format(name))
-        return out['status']
+        c = lxc.Container(name)
+        if not c.state == "RUNNING":
+            return False
+        return True
 
     @classmethod
     def status(cls, name):

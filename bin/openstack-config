@@ -20,23 +20,29 @@
 
 import sys
 import os
-import argparse
 import cloudinstall.utils as utils
 from cloudinstall.config import Config
 
 CFG_FILE = os.path.join(utils.install_home(),
-                        '.cloud-install/config.yaml')
+                        '.cloud-install/config.conf')
 
 if __name__ == '__main__':
     if not os.path.isfile(CFG_FILE):
         print("No existing config file found.")
         sys.exit(1)
-    if len(sys.argv) > 2:
-        print("Only pass in 1 config item to query.")
+    if sys.argv[1] == '--help':
+        print("openstack-config")
+        print("")
+        print("Usage: ")
+        print("")
+        print("  openstack-config 'settings' 'install_type'")
+        sys.exit(0)
+    if len(sys.argv) > 3:
+        print("Only pass in the section and key to query.")
+        print("Example: openstack-config 'settings.proxy' 'http_proxy'")
         sys.exit(1)
-    config_name = sys.argv[1]
-    opts = argparse.Namespace(config_file=CFG_FILE)
-    cfg = Config(utils.populate_config(opts))
-    val = cfg.getopt(config_name)
+    section = sys.argv[1]
+    key = sys.argv[2]
+    val = Config.get(section, key)
     print(val)
     sys.exit(0)

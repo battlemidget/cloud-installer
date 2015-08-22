@@ -25,6 +25,7 @@ import os
 import json
 import logging
 import time
+from cloudinstall.config import Config
 from cloudinstall import utils, netutils
 from cloudinstall.async import Async
 from cloudinstall.api.container import (Container,
@@ -39,22 +40,21 @@ class SingleInstallAPIException(Exception):
 
 
 class SingleInstallAPI:
-    def __init__(self, config):
-        self.config = config
+    def __init__(self):
         username = utils.install_user()
         self.container_name = 'openstack-single-{}'.format(username)
         self.container_path = '/var/lib/lxc'
         self.container_abspath = os.path.join(self.container_path,
                                               self.container_name)
-        self.userdata = os.path.join(
-            self.config['settings']['cfg_path'], 'userdata.yaml')
+        self.cfg_path = Config.get('settings', 'cfg_path')
+        self.userdata = os.path.join(self.cfg_path, 'userdata.yaml')
 
     def set_apt_proxy_async(self):
         return Async.pool.submit(self.set_apt_proxy)
 
     def set_apt_proxy(self):
         "Use http_proxy unless apt_http_proxy is explicitly set"
-        proxy = self.config['settings.proxy']
+        proxy = Config.get('settings.proxy')
         apt_proxy = proxy['apt_proxy']
         http_proxy = proxy['http_proxy']
         if not apt_proxy and http_proxy:
@@ -64,7 +64,6 @@ class SingleInstallAPI:
         https_proxy = proxy['https_proxy']
         if not apt_https_proxy and https_proxy:
             proxy['apt_https_proxy'] = https_proxy
-        utils.write_ini(self.config)
         return
 
     def set_proxy_pollinate_async(self):
@@ -73,7 +72,7 @@ class SingleInstallAPI:
     def set_proxy_pollinate(self):
         """ Proxy pollinate if http/s proxy is set """
         # pass proxy through to pollinate
-        proxy = self.config['settings.proxy']
+        proxy = Config.get('settings.proxy')
         http_proxy = proxy['http_proxy']
         https_proxy = proxy['https_proxy']
         log.debug('Found proxy info: {}/{}'.format(http_proxy, https_proxy))
@@ -83,7 +82,6 @@ class SingleInstallAPI:
         if https_proxy:
             pollinate.append('https_proxy={}'.format(https_proxy))
         pollinate.extend(['pollinate', '-q'])
-        utils.write_ini(self.config)
         return pollinate
 
     def set_userdata_async(self):
@@ -94,30 +92,28 @@ class SingleInstallAPI:
         """
         render_parts = {'extra_sshkeys': [utils.ssh_readkey()]}
 
-        use_upstream_ppa = self.config['settings'].getboolean(
-            'use_upstream_ppa')
+        use_upstream_ppa = Config.getboolean('settings', 'use_upstream_ppa')
         if use_upstream_ppa:
-            ppa = self.config['settings']['upstream_ppa']
+            ppa = Config.get('settings', 'upstream_ppa')
             render_parts['upstream_ppa'] = ppa
 
         render_parts['seed_command'] = self.set_proxy_pollinate()
 
-        render_parts['apt_mirror'] = self.config['settings'].get(
-            'apt_mirror', "")
-        for opt in self.config['settings.juju'].keys():
+        render_parts['apt_mirror'] = Config.get('settings', 'apt_mirror')
+        for opt in Config.get('settings.juju').keys():
             if opt in ['image_metadata_url',
                        'tools_metadata_url']:
-                val = self.config['settings'].get(opt, None)
+                val = Config.get('settings', opt)
                 if val:
                     render_parts[opt] = val
-        for opt in self.config['settings.proxy'].keys():
+        for opt in Config.get('settings.proxy').keys():
             if opt in ['apt_proxy', 'apt_https_proxy', 'http_proxy',
                        'https_proxy', 'no_proxy']:
-                val = self.config['settings.proxy'].get(opt, None)
+                val = Config.get('settings.proxy', opt)
                 if val:
                     render_parts[opt] = val
 
-        dst_file = os.path.join(self.config['settings']['cfg_path'],
+        dst_file = os.path.join(self.cfg_path,
                                 'userdata.yaml')
         original_data = utils.load_template('userdata.yaml')
         log.info("Prepared userdata: {}".format(render_parts))
@@ -131,20 +127,20 @@ class SingleInstallAPI:
         """ set juju environments for bootstrap
         """
         render_parts = {'openstack_password':
-                        self.config['settings']['password'],
+                        Config.get('settings', 'password'),
                         'ubuntu_series':
-                        self.config['settings.juju']['series']}
+                        Config.get('settings.juju', 'series')}
 
         for opt in ['apt_proxy', 'apt_https_proxy', 'http_proxy',
                     'https_proxy']:
-            val = self.config['settings.proxy'][opt]
+            val = Config.get('settings.proxy', opt)
             if val:
                 render_parts[opt] = val
 
         # configure juju environment for bootstrap
         single_env = utils.load_template('juju-env/single.yaml')
         single_env_modified = single_env.render(render_parts)
-        utils.spew(self.config['settings.juju']['environments_path'],
+        utils.spew(Config.get('settings.juju', 'environments_yaml'),
                    single_env_modified,
                    owner=utils.install_user())
 
@@ -168,8 +164,7 @@ class SingleInstallAPI:
                                                   'rootfs/etc/default/lxc-net')
 
         network = netutils.get_unique_lxc_network()
-        self.config['settings.single']['lxc_network'] = network
-        utils.write_ini(self.config)
+        Config.set('settings.single', 'lxc_network', network)
         nw = IPv4Network(network)
         addr = nw[1]
         netmask = nw.with_netmask.split('/')[-1]
@@ -194,8 +189,7 @@ class SingleInstallAPI:
         """
         # Store container IP in config
         ip = Container.ip(self.container_name)
-        self.config['settings.single']['container_ip'] = ip
-        utils.write_ini(self.config)
+        Config.set('settings.single', 'container_ip', ip)
 
         log.info("Adding static route for {} via {}".format(lxc_net,
                                                             ip))
@@ -217,15 +211,14 @@ class SingleInstallAPI:
         log.debug("Writing containers fstab file")
         with open(os.path.join(self.container_abspath, 'fstab'), 'w') as f:
             f.write("{0} {1} none bind,create=dir\n".format(
-                self.config['settings']['cfg_path'],
+                self.cfg_path,
                 'home/ubuntu/.cloud-install'))
             f.write("/var/cache/lxc var/cache/lxc none bind,create=dir\n")
             # Detect additional charm plugins and make available to the
             # container.
-            charm_plugin_dir = self.config['settings.charms'].get(
-                'plugin_path', False)
+            charm_plugin_dir = Config.get('settings.charms', 'plugin_path')
             if charm_plugin_dir \
-               and self.config['settings']['cfg_path'] in charm_plugin_dir:
+               and self.cfg_path in charm_plugin_dir:
                 plug_dir = os.path.abspath(charm_plugin_dir)
                 plug_base = os.path.basename(plug_dir)
                 f.write("{d} home/ubuntu/{m} "
@@ -247,17 +240,17 @@ class SingleInstallAPI:
                     "lxc.start.delay = 5\n"
                     "lxc.mount = {}/fstab\n".format(self.container_abspath))
         lxc_logfile = os.path.join(
-            self.config['settings']['cfg_path'], 'lxc.log')
+            self.cfg_path, 'lxc.log')
 
         Container.start(self.container_name, lxc_logfile)
 
         Container.wait_checked(self.container_name,
                                lxc_logfile)
 
-        tries = 0
-        while not self.cloud_init_finished(tries):
-            time.sleep(1)
-            tries += 1
+        # tries = 0
+        # while not self.cloud_init_finished(tries):
+        #     time.sleep(1)
+        #     tries += 1
 
         # we do this here instead of using cloud-init, for greater
         # control over ordering
@@ -268,19 +261,23 @@ class SingleInstallAPI:
 
         log.debug("Installing openstack & openstack-single directly, "
                   "and juju-local, libvirt-bin and lxc via deps")
-        Container.run(self.container_name,
-                      "env DEBIAN_FRONTEND=noninteractive apt-get -qy "
-                      "-o Dpkg::Options::=--force-confdef "
-                      "-o Dpkg::Options::=--force-confold "
-                      "install openstack openstack-single ")
+        # Container.run(self.container_name,
+        #               "env DEBIAN_FRONTEND=noninteractive apt-get -qy "
+        #               "-o Dpkg::Options::=--force-confdef "
+        #               "-o Dpkg::Options::=--force-confold "
+        #               "install openstack openstack-single ")
+        Container.run(
+            self.container_name,
+            "apt-get -qy install openstack openstack-single")
         log.debug("done installing deps")
 
-    def copy_upstream_deb_async(self, upstream_deb):
+    def copy_upstream_deb_async(self):
         return Async.pool.submit(self.copy_upstream_deb)
 
-    def copy_upstream_deb(self, upstream_deb):
+    def copy_upstream_deb(self):
         """ Copies local upstream debian package into container """
-        shutil.copy(upstream_deb, self.config['settings']['cfg_path'])
+        shutil.copy(Config.get('settings', 'upstream_deb'),
+                    self.cfg_path)
 
     def install_upstream_deb_async(self):
         return Async.pool.submit(self.install_upstream_deb)
@@ -288,7 +285,7 @@ class SingleInstallAPI:
     def install_upstream_deb(self):
         log.info('Found upstream deb, installing that instead')
         filename = os.path.basename(
-            self.config['settings.single']['upstream_deb_path'])
+            Config.get('settings.single', 'upstream_deb_path'))
         try:
             Container.run(
                 self.container_name,
@@ -311,17 +308,17 @@ class SingleInstallAPI:
         try:
             log.info("Setting permissions for user {}".format(
                 utils.install_user()))
-            utils.chown(self.config['settings']['cfg_path'],
+            utils.chown(self.cfg_path,
                         utils.install_user(),
                         utils.install_user(),
                         recursive=True)
             utils.get_command_output("sudo chmod 777 {}".format(
-                self.config['settings']['cfg_path']))
+                self.cfg_path))
             utils.get_command_output("sudo chmod 777 -R {}/*".format(
-                self.config['settings']['cfg_path']))
+                self.cfg_path))
         except:
             msg = ("Error setting ownership for "
-                   "{}".format(self.config['settings']['cfg_path']))
+                   "{}".format(self.cfg_path))
             log.exception(msg)
             raise Exception(msg)
 
