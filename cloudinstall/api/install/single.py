@@ -247,10 +247,10 @@ class SingleInstallAPI:
         Container.wait_checked(self.container_name,
                                lxc_logfile)
 
-        # tries = 0
-        # while not self.cloud_init_finished(tries):
-        #     time.sleep(1)
-        #     tries += 1
+        tries = 0
+        while not self.cloud_init_finished(tries):
+            time.sleep(1)
+            tries += 1
 
         # we do this here instead of using cloud-init, for greater
         # control over ordering
@@ -261,14 +261,11 @@ class SingleInstallAPI:
 
         log.debug("Installing openstack & openstack-single directly, "
                   "and juju-local, libvirt-bin and lxc via deps")
-        # Container.run(self.container_name,
-        #               "env DEBIAN_FRONTEND=noninteractive apt-get -qy "
-        #               "-o Dpkg::Options::=--force-confdef "
-        #               "-o Dpkg::Options::=--force-confold "
-        #               "install openstack openstack-single ")
-        Container.run(
-            self.container_name,
-            "apt-get -qy install openstack openstack-single")
+        Container.run(self.container_name,
+                      "env DEBIAN_FRONTEND=noninteractive apt-get -qy "
+                      "-o Dpkg::Options::=--force-confdef "
+                      "-o Dpkg::Options::=--force-confold "
+                      "install openstack openstack-single ", use_ssh=True)
         log.debug("done installing deps")
 
     def copy_upstream_deb_async(self):
