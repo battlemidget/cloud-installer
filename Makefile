@@ -42,7 +42,7 @@ deb-src: git-clone-debian clean update_version tarball
 deb-release: git-clone-debian
 	@dpkg-buildpackage -S -sd $(DPKGBUILDARGS)
 
-deb: git-clone-debian clean update_version man-pages tarball
+deb: clean update_version man-pages tarball
 	@dpkg-buildpackage -b $(DPKGBUILDARGS)
 
 man-pages:
@@ -54,13 +54,13 @@ man-pages:
 current_version:
 	@echo $(VERSION)
 
-git-clone-debian:
-	@if [ ! -d "tmp/debian-git" ]; then \
-		git clone -q https://github.com/Ubuntu-Solutions-Engineering/openstack-installer-deb.git tmp/debian-git; \
-	fi
-	@if [ ! -h "debian" ]; then \
-		ln -sf tmp/debian-git/debian debian; \
-	fi
+#git-clone-debian:
+#	@if [ ! -d "tmp/debian-git" ]; then \
+#		git clone -q https://github.com/Ubuntu-Solutions-Engineering/openstack-installer-deb.git tmp/debian-git; \
+#	fi
+#	@if [ ! -h "debian" ]; then \
+#		ln -sf tmp/debian-git/debian debian; \
+#	fi
 
 git_rev:
 	@echo $(GIT_REV)

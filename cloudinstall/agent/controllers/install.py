@@ -1,4 +1,4 @@
-# Copyright 2015 Canonical, Ltd.
+# Copyright 2014, 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -12,3 +12,30 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+""" Agent install controller
+"""
+
+from .base import BaseHandler  # NOQA
+import cloudinstall.utils as utils
+from tornado.gen import coroutine
+
+
+class SshKeysHandler(BaseHandler):
+    """ Store ssh key for agent runner
+
+    POST /api/install/ssh_keys
+      { ssh_priv_key: "",
+        ssh_pub_key: ""
+       }
+    """
+    @coroutine
+    def post(self):
+        params = self.params_to_dict()
+        pass
+
+
+class InstallController(BaseHandler):
+    @coroutine
+    def post(self):
+        pass

@@ -15,7 +15,6 @@
 
 import logging
 import time
-import sys
 
 from os import path, getenv
 
@@ -36,7 +35,6 @@ from macumba import Jobs as JujuJobs
 
 
 log = logging.getLogger('cloudinstall.core')
-sys.excepthook = utils.global_exchandler
 
 
 class FakeJujuState:
@@ -215,7 +213,6 @@ class Controller:
         else:
             self.begin_deployment_async()
 
-    @utils.async
     def begin_deployment_async(self):
         """ async deployment
         """
@@ -610,7 +607,6 @@ class Controller:
                                      self.maas_state, self.config)
         self.loop.redraw_screen()
 
-    @utils.async
     def deploy_new_services(self):
         """Deploys newly added services in background thread.
         Does not attempt to create new machines.

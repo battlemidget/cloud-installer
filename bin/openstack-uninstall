@@ -2,16 +2,16 @@
 
 echo -n Ubuntu Openstack Installer Uninstalling ...
 
-WHAT=$(openstack-config settings install_type)
-CONTAINER_NAME=$(openstack-config 'settings.single' container_name)
-CONTAINER_NETWORK=$(openstack-config 'settings.single' lxc_network)
+WHAT=$(openstack config --section settings install_type)
+CONTAINER_NAME=$(openstack config --section 'settings.single' container_name)
+CONTAINER_NETWORK=$(openstack config --section 'settings.single' lxc_network)
 MAAS_TYPE=existing
 
 apt_purge() {
   DEBIAN_FRONTEND=noninteractive apt-get -yy purge $@
 }
 
-CFG_HOME=$(openstack-config settings cfg_path)
+CFG_HOME=$(openstack config --section settings cfg_path)
 case $WHAT in
   "Landscape OpenStack Autopilot")
     echo Landscape OpenStack Autopilot environment

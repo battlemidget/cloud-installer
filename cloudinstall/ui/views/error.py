@@ -38,6 +38,7 @@ class ErrorView(ViewPolicy):
         self.signal = signal
         self.error = error
         tb = traceback.format_exc()
+        log.exception(tb)
         bug_url = ("https://github.com/Ubuntu-Solutions-Engineering"
                    "/openstack-installer/issues/new")
         body = [

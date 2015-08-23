@@ -14,9 +14,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import cloudinstall.utils as utils
-from os import path
 import logging
-
+import os
 
 log = logging.getLogger('cloudinstall.config')
 
@@ -158,3 +157,16 @@ class Config:
     @classmethod
     def reload(cls):
         Config._config = utils.read_ini_existing()
+
+    @classmethod
+    def load(cls):
+        Config.reload()
+
+    @classmethod
+    def to_dict(cls):
+        return dict(Config._config)
+
+    @classmethod
+    def exists(cls):
+        return os.path.isfile(
+            os.path.join(utils.install_home(), '.cloud-install/config.conf'))

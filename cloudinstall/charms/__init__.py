@@ -29,6 +29,7 @@ import requests
 
 from macumba import MacumbaError, ServerError
 from cloudinstall import utils
+from cloudinstall.async import Async
 from cloudinstall.placement.controller import AssignmentType
 
 log = logging.getLogger('cloudinstall.charms')
@@ -416,9 +417,8 @@ class CharmQueue:
 
         return valid_relations
 
-    @utils.async
     def watch_relations_async(self):
-        self.watch_relations()
+        return Async.pool.submit(self.watch_relations)
 
     def watch_relations(self):
         """ Setup charm relations
@@ -456,9 +456,8 @@ class CharmQueue:
             charms.append(charm)
         return charms
 
-    @utils.async
     def watch_post_proc_async(self):
-        self.watch_post_proc()
+        return Async.pool.submit(self.watch_post_proc)
 
     def watch_post_proc(self):
         for charm in self._charm_classes():

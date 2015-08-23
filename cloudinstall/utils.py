@@ -497,10 +497,17 @@ def install_home():
     return os.path.expanduser("~" + install_user())
 
 
-def ssh_readkey():
-    """ reads ssh key
+def ssh_read_pubkey():
+    """ reads ssh public key
     """
     with open(ssh_pubkey(), 'r') as f:
+        return f.read()
+
+
+def ssh_read_privkey():
+    """ reads ssh private key
+    """
+    with open(ssh_privkey(), 'r') as f:
         return f.read()
 
 

@@ -3,11 +3,11 @@ Upstream-Name: openstack
 Source: https://launchpad.net/cloud-installer
 
 Files: *
-Copyright: Copyright 2013, Canonical Ltd., All Rights Reserved.
+Copyright: Copyright 2013-2015, Canonical Ltd., All Rights Reserved.
 License: AGPL-3.0+
 
 Files: debian/*
-Copyright: Copyright 2013, Canonical Ltd., All Rights Reserved.
+Copyright: Copyright 2013-2015, Canonical Ltd., All Rights Reserved.
 License: AGPL-3.0+
 
 License: AGPL-3.0+

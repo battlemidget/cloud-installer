@@ -28,9 +28,9 @@ Build-Depends: debhelper (>= 9),
 Standards-Version: 3.9.5
 Homepage: https://launchpad.net/cloud-installer
 X-Python-Version: >= 2.7
-X-Python3-Version: >= 3.3
-Vcs-Browser: https://github.com/Ubuntu-Solutions-Engineering/cloud-installer
-Vcs-Git: https://github.com/Ubuntu-Solutions-Engineering/cloud-installer.git
+X-Python3-Version: >= 3.4
+Vcs-Browser: https://github.com/Ubuntu-Solutions-Engineering/openstack-installer
+Vcs-Git: https://github.com/Ubuntu-Solutions-Engineering/openstack-installer.git
 
 Package: openstack
 Architecture: all
@@ -60,7 +60,7 @@ Depends: gawk,
          ${python:Depends}
 Replaces: cloud-installer
 Conflicts: cloud-installer
-Description: Ubuntu Openstack Installer
+Description: Ubuntu OpenStack Installer
  Ubuntu OpenStack Installer provides an extremely simple way to
  install, deploy and scale an OpenStack cloud on top of Ubuntu server
  and Juju. Deploy onto a single physical system using virtual machines
@@ -72,15 +72,7 @@ Description: Ubuntu Openstack Installer
 Package: openstack-multi
 Section: admin
 Architecture: all
-Depends: juju-core,
-         lxc,
-         maas,
-         maas-dhcp,
-         maas-dns,
-         qemu-kvm,
-         virtinst,
-         vlan,
-         ${misc:Depends}
+Depends: juju-core, lxc, ${misc:Depends}
 Replaces: cloud-install-multi
 Conflicts: cloud-install-multi
 Description: Ubuntu Openstack Installer (multi-system) - dependency package

@@ -26,9 +26,8 @@ class EventLoop:
     """ Abstracts out event loop
     """
 
-    def __init__(self, ui, log):
+    def __init__(self, ui):
         self.ui = ui
-        self.log = log
         self.error_code = 0
         self.loop = self._build_loop()
 
@@ -46,7 +45,7 @@ class EventLoop:
             self.loop.draw_screen()
             log.debug("Screen was redrawn.")
         except AssertionError as e:
-            self.log.exception("exception failure in redraw_screen")
+            log.exception("exception failure in redraw_screen")
             raise e
 
     def set_alarm_in(self, interval, cb):

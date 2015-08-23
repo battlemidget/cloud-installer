@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+# -*- mode: python; -*-
+# Copyright 2014, 2015 Canonical, Ltd.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+""" CLI for installing Ubuntu OpenStack """
+
+import argparse
+import sys
+import logging
+import os
+import traceback
+import cloudinstall.utils as utils
+from cloudinstall.log import setup_logger
+from cloudinstall import __version__ as version
+from cloudinstall.cli.install import InstallCmd
+from cloudinstall.cli.status import StatusCmd
+from cloudinstall.cli.agent import AgentCmd
+from cloudinstall.cli.config import ConfigCmd
+
+# Handle imports where the path is not automatically updated during install.
+# This really only happens when a binary is not in the usual /usr/bin location
+lib_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, lib_dir)
+
+
+def parse_options():
+    parser = argparse.ArgumentParser(description='Ubuntu OpenStack',
+                                     prog='openstack')
+    subparsers = parser.add_subparsers(title="subcommands")
+    install = subparsers.add_parser('install', help="Install Ubuntu OpenStack")
+    install.add_argument(
+        '-u', '--uninstall', action='store_true',
+        dest='uninstall', default=False,
+        help='Uninstalls the current deployment')
+    install.add_argument(
+        '--edit-placement', action='store_true',
+        dest='edit_placement', default=False,
+        help='Loads the placement of services view before deploy.')
+    install.add_argument(
+        '--advanced', action="store_true",
+        help="Prompt user for setting advanced configuration options",
+        default=False)
+    install.set_defaults(func=InstallCmd)
+    status = subparsers.add_parser('status', help="Ubuntu OpenStack Dashboard")
+    status.set_defaults(command=StatusCmd)
+    agent = subparsers.add_parser('agent',
+                                  help="Ubuntu OpenStack Management Agent")
+    agent.add_argument('--port', help="Agent listen port", default=10000)
+    agent.set_defaults(func=AgentCmd)
+    config = subparsers.add_parser('config',
+                                   help="Queries current configuration")
+    config.add_argument(
+        '--section', help='[Section] of config to query'
+    )
+    config.add_argument(
+        'option', help='Option from [Section] to query'
+    )
+    config.set_defaults(func=ConfigCmd)
+    parser.add_argument(
+        '--version', action='version', version='%(prog)s {}'.format(version))
+    return parser.parse_args()
+
+
+def main():
+    opts = parse_options()
+
+    try:
+        setup_logger()
+    except PermissionError:  # NOQA
+        print("Permission error accessing log file.\n"
+              "This probably indicates a broken partial install.\n"
+              "Please use 'openstack-install -u' to uninstall, "
+              "and try again.\n"
+              "(You may want to save a copy of ~/.cloud-install/commands.log"
+              " for reporting a bug.)")
+        sys.exit(1)
+
+    log = logging.getLogger('cloudinstall')
+    log.info('Ubuntu OpenStack v{}'.format(version))
+    log.info('Run Commands: {}'.format(sys.argv))
+
+    cmd = opts.func(opts)
+    try:
+        import atexit
+        atexit.register(utils.cleanup)
+        cmd.main()
+    except Exception:
+        tb = traceback.format_exc()
+        print("Problem with Ubuntu OpenStack: {}".format(tb))
+        log.exception(tb)
+        sys.exit(1)
+    sys.exit(0)
+
+if __name__ == "__main__":
+    main()

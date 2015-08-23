@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- mode: python; -*-
-#
 # Copyright 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
@@ -19,30 +16,23 @@
 """ Small utility to print current installer configuration settings """
 
 import sys
-import os
-import cloudinstall.utils as utils
 from cloudinstall.config import Config
 
-CFG_FILE = os.path.join(utils.install_home(),
-                        '.cloud-install/config.conf')
 
-if __name__ == '__main__':
-    if not os.path.isfile(CFG_FILE):
-        print("No existing config file found.")
-        sys.exit(1)
-    if sys.argv[1] == '--help':
-        print("openstack-config")
-        print("")
-        print("Usage: ")
-        print("")
-        print("  openstack-config 'settings' 'install_type'")
+class ConfigCmd:
+    def __init__(self, opts):
+        self.opts = opts
+
+    def main(self):
+        if not Config.exists():
+            print("No existing config file found.")
+            sys.exit(1)
+        if not self.opts.section:
+            print("No --section found")
+            sys.exit(1)
+        if not self.opts.option:
+            print("No --option found")
+            sys.exit(1)
+        val = Config.get(self.opts.section, self.opts.option)
+        print(val)
         sys.exit(0)
-    if len(sys.argv) > 3:
-        print("Only pass in the section and key to query.")
-        print("Example: openstack-config 'settings.proxy' 'http_proxy'")
-        sys.exit(1)
-    section = sys.argv[1]
-    key = sys.argv[2]
-    val = Config.get(section, key)
-    print(val)
-    sys.exit(0)

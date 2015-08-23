@@ -31,6 +31,7 @@ from cloudinstall.async import Async
 from cloudinstall.api.container import (Container,
                                         ContainerRunException,
                                         NoContainerIPException)
+from cloudinstall.api.base import Client
 
 log = logging.getLogger("cloudinstall.a.i.single")
 
@@ -41,6 +42,7 @@ class SingleInstallAPIException(Exception):
 
 class SingleInstallAPI:
     def __init__(self):
+        self.client = Client()
         username = utils.install_user()
         self.container_name = 'openstack-single-{}'.format(username)
         self.container_path = '/var/lib/lxc'
@@ -144,13 +146,18 @@ class SingleInstallAPI:
                    single_env_modified,
                    owner=utils.install_user())
 
-    def copy_host_ssh_to_container_async(self):
-        return Async.pool.submit(self.copy_host_ssh_to_container)
+    def upload_ssh_keys_async(self):
+        return Async.pool.submit(self.upload_ssh_keys)
 
-    def copy_host_ssh_to_container(self):
-        Container.cp(self.container_name,
-                     os.path.join(utils.install_home(), '.ssh/id_rsa*'),
-                     '.ssh/.')
+    def upload_ssh_keys(self):
+        ssh_priv_key = utils.ssh_read_privkey()
+        ssh_pub_key = utils.ssh_read_pubkey()
+        res = self.client.post('/install/upload_ssh_keys',
+                               dict(ssh_priv_key=ssh_priv_key,
+                                    ssh_pub_key=ssh_pub_key))
+        if 'error' in res.json:
+            raise SingleInstallAPIException(res.json['error'])
+        return True
 
     def set_lxc_net_config_async(self):
         return Async.pool.submit(self.set_lxc_net_config)

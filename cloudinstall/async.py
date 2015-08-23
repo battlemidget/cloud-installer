@@ -41,4 +41,4 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 class Async:
-    pool = ThreadPoolExecutor(10)
+    pool = ThreadPoolExecutor(4)

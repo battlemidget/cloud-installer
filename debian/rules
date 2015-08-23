@@ -2,6 +2,7 @@
 
 export PYBUILD_NAME=cloudinstall
 export PYBUILD_DISABLE_python2=1
+export PYBUILD_TEST_PYTEST=0
 export PYBUILD_INSTALL_DIR=usr/share/openstack/
 export PYBUILD_INSTALL_ARGS_python3=--install-lib=usr/share/openstack/ \
 	--install-data=usr/ \
