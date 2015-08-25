@@ -549,7 +549,7 @@ def read_ini(path):
     """ Reads a basic INI like file.
     """
     if not os.path.isfile(path):
-        return False
+        raise Exception("Unable to find config file.")
     config = configparser.ConfigParser()
     config.read(path)
     return config

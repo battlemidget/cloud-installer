@@ -16,7 +16,7 @@
 """ Single Install Controller """
 
 import logging
-from subprocess import check_output, STDOUT
+import sys
 from tornado.gen import coroutine
 from cloudinstall import utils, netutils
 from cloudinstall.config import Config
@@ -44,27 +44,6 @@ class SingleInstallController(ControllerPolicy):
         self.model = SingleInstallModel()
         self.api = SingleInstallAPI()
         self.container_name = Config.get('settings.single', 'container_name')
-
-    def _read_container_status(self):
-        return check_output("lxc-info -n {} -s "
-                            "|| true".format(self.container_name),
-                            shell=True, stderr=STDOUT).decode('utf-8')
-
-    def _read_cloud_init_output(self):
-        try:
-            s = Container.run(self.container_name, 'tail -n 10 '
-                              '/var/log/cloud-init-output.log')
-            return s.replace('\r', '')
-        except Exception:
-            return "Waiting..."
-
-    def _read_juju_log(self):
-        try:
-            return Container.run(self.container_name, 'tail -n 10 '
-                                 '/var/log/juju-ubuntu-local'
-                                 '/all-machines.log')
-        except Exception:
-            return "Waiting..."
 
     def print_task(self, msg=None):
         if msg:
@@ -105,12 +84,14 @@ class SingleInstallController(ControllerPolicy):
     def set_userdata(self):
         try:
             yield self.api.set_userdata_async()
-            self.set_charmconfig()
+            # self.set_charmconfig()
+            self.set_perms()
         except Exception as e:
             self.ui.set_body(ErrorView(self.model,
                                        self.signal,
                                        e))
 
+    # Handle inside container from agent
     @coroutine
     def set_charmconfig(self):
         try:
@@ -146,72 +127,73 @@ class SingleInstallController(ControllerPolicy):
         self.print_task("Creating Host Container")
         try:
             yield self.api.create_container_async()
-            self.set_copy_host_ssh()
+            # self.set_copy_host_ssh()
+            sys.exit(0)
         except Exception as e:
             self.ui.set_body(ErrorView(self.model,
                                        self.signal,
                                        e))
 
-    @coroutine
-    def set_copy_host_ssh(self):
-        self.print_task("Copying ssh keys")
-        try:
-            yield self.api.copy_host_ssh_to_container_async()
-            self.set_upstream_deb()
-        except Exception as e:
-            self.ui.set_body(ErrorView(self.model,
-                                       self.signal,
-                                       e))
+    # @coroutine
+    # def set_copy_host_ssh(self):
+    #     self.print_task("Copying ssh keys")
+    #     try:
+    #         yield self.api.copy_host_ssh_to_container_async()
+    #         self.set_upstream_deb()
+    #     except Exception as e:
+    #         self.ui.set_body(ErrorView(self.model,
+    #                                    self.signal,
+    #                                    e))
 
-    @coroutine
-    def set_upstream_deb(self):
-        try:
-            upstream_deb = Config.get('settings.single', 'upstream_deb_path')
-            if upstream_deb:
-                self.print_task("Setting local debian package")
-                yield self.api.copy_upstream_deb_async()
-                yield self.api.install_upstream_deb_async()
-            self.set_install_only()
-        except Exception as e:
-            self.ui.set_body(ErrorView(self.model,
-                                       self.signal,
-                                       e))
+    # @coroutine
+    # def set_upstream_deb(self):
+    #     try:
+    #         upstream_deb = Config.get('settings.single', 'upstream_deb_path')
+    #         if upstream_deb:
+    #             self.print_task("Setting local debian package")
+    #             yield self.api.copy_upstream_deb_async()
+    #             yield self.api.install_upstream_deb_async()
+    #         self.set_install_only()
+    #     except Exception as e:
+    #         self.ui.set_body(ErrorView(self.model,
+    #                                    self.signal,
+    #                                    e))
 
-    def set_install_only(self):
-        # Close out loop if install only
-        self.print_task("Checking if we should stop for --install-only")
-        if Config.getboolean('settings', 'install_only'):
-            log.info("Done installing, stopping here per --install-only.")
-            Config.set('settings', 'install_only', "yes")
-            self.signal.emit_signal('quit')
-        return self.set_juju_proxy()
+    # def set_install_only(self):
+    #     # Close out loop if install only
+    #     self.print_task("Checking if we should stop for --install-only")
+    #     if Config.getboolean('settings', 'install_only'):
+    #         log.info("Done installing, stopping here per --install-only.")
+    #         Config.set('settings', 'install_only', "yes")
+    #         self.signal.emit_signal('quit')
+    #     return self.set_juju_proxy()
 
-    def set_juju_proxy(self):
-        #  Update jujus no-proxy setting if applicable
-        proxy = Config.get('settings.proxy')
-        if proxy['http_proxy'] or proxy['https_proxy']:
-            log.info("Updating juju environments for proxy support")
-            lxc_net = Config.get('settings.single', 'lxc_network')
-            utils.update_environments_yaml(
-                key='no-proxy',
-                val='{},localhost,{}'.format(
-                    Container.ip(self.container_name),
-                    netutils.get_ip_set(lxc_net)))
-        return self.start_status()
+    # def set_juju_proxy(self):
+    #     #  Update jujus no-proxy setting if applicable
+    #     proxy = Config.get('settings.proxy')
+    #     if proxy['http_proxy'] or proxy['https_proxy']:
+    #         log.info("Updating juju environments for proxy support")
+    #         lxc_net = Config.get('settings.single', 'lxc_network')
+    #         utils.update_environments_yaml(
+    #             key='no-proxy',
+    #             val='{},localhost,{}'.format(
+    #                 Container.ip(self.container_name),
+    #                 netutils.get_ip_set(lxc_net)))
+    #     return self.start_status()
 
-    def start_status(self):
-        # Save our config before moving on to dashboard
-        cloud_status_bin = ['openstack-status']
-        juju_home = Config.get('settings.juju', 'home_expanded')
-        Container.run(self.container_name,
-                      "{0} juju --debug bootstrap".format(juju_home),
-                      use_ssh=True)
-        Container.run(
-            self.container_name,
-            "{0} juju status".format(juju_home),
-            use_ssh=True)
-        Container.run_status(
-            self.container_name, " ".join(cloud_status_bin), Config)
+    # def start_status(self):
+    #     # Save our config before moving on to dashboard
+    #     cloud_status_bin = ['openstack-status']
+    #     juju_home = Config.get('settings.juju', 'home_expanded')
+    #     Container.run(self.container_name,
+    #                   "{0} juju --debug bootstrap".format(juju_home),
+    #                   use_ssh=True)
+    #     Container.run(
+    #         self.container_name,
+    #         "{0} juju status".format(juju_home),
+    #         use_ssh=True)
+    #     Container.run_status(
+    #         self.container_name, " ".join(cloud_status_bin), Config)
 
     def single(self):
         """ Start prompting for Single Install information

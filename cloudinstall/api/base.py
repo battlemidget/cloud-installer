@@ -18,7 +18,9 @@
 
 import requests
 import json
-from cloudinstall.config import Config
+from .config import Config
+from .container import Container
+from .install.single import SingleInstallAPI
 
 
 class Result:
@@ -29,14 +31,14 @@ class Result:
         return self.response.ok
 
     @property
-    def json(self):
+    def content(self):
         return json.loads(self.response.text)
 
 
 class Client:
-    def __init__(self):
-        self.host = Config.get('settings.agent', 'host')
-        self.port = Config.get('settings.agent', 'port')
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
         self.api_url = "http://{}:{}/api".format(self.host, self.port)
 
     def get(self, url, params=None):
@@ -49,3 +51,15 @@ class Client:
 
     def delete(self, url, params=None):
         return Result(requests.delete(url=self.api_url + url))
+
+    # Config API -------------------------------------------------------------
+    def config(self):
+        return Config(self)
+
+    # Container API ----------------------------------------------------------
+    def container(self):
+        return Container(self)
+
+    # Single Install API -----------------------------------------------------
+    def single_install(self):
+        return SingleInstallAPI(self)

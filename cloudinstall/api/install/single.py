@@ -25,13 +25,13 @@ import os
 import json
 import logging
 import time
+import lxc
 from cloudinstall.config import Config
 from cloudinstall import utils, netutils
 from cloudinstall.async import Async
 from cloudinstall.api.container import (Container,
                                         ContainerRunException,
                                         NoContainerIPException)
-from cloudinstall.api.base import Client
 
 log = logging.getLogger("cloudinstall.a.i.single")
 
@@ -42,7 +42,6 @@ class SingleInstallAPIException(Exception):
 
 class SingleInstallAPI:
     def __init__(self):
-        self.client = Client()
         username = utils.install_user()
         self.container_name = 'openstack-single-{}'.format(username)
         self.container_path = '/var/lib/lxc'
@@ -92,7 +91,7 @@ class SingleInstallAPI:
     def set_userdata(self):
         """ set userdata file for container install
         """
-        render_parts = {'extra_sshkeys': [utils.ssh_readkey()]}
+        render_parts = {'extra_sshkeys': [utils.ssh_read_pubkey()]}
 
         use_upstream_ppa = Config.getboolean('settings', 'use_upstream_ppa')
         if use_upstream_ppa:
@@ -146,18 +145,18 @@ class SingleInstallAPI:
                    single_env_modified,
                    owner=utils.install_user())
 
-    def upload_ssh_keys_async(self):
-        return Async.pool.submit(self.upload_ssh_keys)
+    # def upload_ssh_keys_async(self):
+    #     return Async.pool.submit(self.upload_ssh_keys)
 
-    def upload_ssh_keys(self):
-        ssh_priv_key = utils.ssh_read_privkey()
-        ssh_pub_key = utils.ssh_read_pubkey()
-        res = self.client.post('/install/upload_ssh_keys',
-                               dict(ssh_priv_key=ssh_priv_key,
-                                    ssh_pub_key=ssh_pub_key))
-        if 'error' in res.json:
-            raise SingleInstallAPIException(res.json['error'])
-        return True
+    # def upload_ssh_keys(self):
+    #     ssh_priv_key = utils.ssh_read_privkey()
+    #     ssh_pub_key = utils.ssh_read_pubkey()
+    #     res = self.client.post('/install/upload_ssh_keys',
+    #                            dict(ssh_priv_key=ssh_priv_key,
+    #                                 ssh_pub_key=ssh_pub_key))
+    #     if 'error' in res.json:
+    #         raise SingleInstallAPIException(res.json['error'])
+    #     return True
 
     def set_lxc_net_config_async(self):
         return Async.pool.submit(self.set_lxc_net_config)
@@ -213,6 +212,7 @@ class SingleInstallAPI:
     def create_container(self):
         """ Creates container
         """
+        log.debug("Creating container.")
         Container.create(self.container_name, self.userdata)
 
         log.debug("Writing containers fstab file")
@@ -221,17 +221,6 @@ class SingleInstallAPI:
                 self.cfg_path,
                 'home/ubuntu/.cloud-install'))
             f.write("/var/cache/lxc var/cache/lxc none bind,create=dir\n")
-            # Detect additional charm plugins and make available to the
-            # container.
-            charm_plugin_dir = Config.get('settings.charms', 'plugin_path')
-            if charm_plugin_dir \
-               and self.cfg_path in charm_plugin_dir:
-                plug_dir = os.path.abspath(charm_plugin_dir)
-                plug_base = os.path.basename(plug_dir)
-                f.write("{d} home/ubuntu/{m} "
-                        "none bind,create=dir\n".format(d=plug_dir,
-                                                        m=plug_base))
-
             extra_mounts = os.getenv("EXTRA_BIND_DIRS", None)
             if extra_mounts:
                 for d in extra_mounts.split(','):
@@ -240,40 +229,39 @@ class SingleInstallAPI:
                             "none bind,create=dir\n".format(d=d,
                                                             m=mountpoint))
 
-        # update container config
-        with open(os.path.join(self.container_abspath, 'config'), 'a') as f:
-            f.write("lxc.mount.auto = cgroup:mixed\n"
-                    "lxc.start.auto = 1\n"
-                    "lxc.start.delay = 5\n"
-                    "lxc.mount = {}/fstab\n".format(self.container_abspath))
-        lxc_logfile = os.path.join(
-            self.cfg_path, 'lxc.log')
+        log.debug("Setting config items")
+        lxc_config_items = [
+            ('lxc.mount.auto', 'cgroup:mixed'),
+            ('lxc.start.auto', '1'),
+            ('lxc.start.delay', '5'),
+            ('lxc.mount', "{}/fstab".format(self.container_abspath))
+        ]
+        for k, v in lxc_config_items:
+            Container.set_config_item(self.container_name, k, v)
 
-        Container.start(self.container_name, lxc_logfile)
+        log.debug("Starting container")
+        Container.start(self.container_name)
 
-        Container.wait_checked(self.container_name,
-                               lxc_logfile)
-
-        tries = 0
-        while not self.cloud_init_finished(tries):
-            time.sleep(1)
-            tries += 1
-
-        # we do this here instead of using cloud-init, for greater
-        # control over ordering
-        log.debug("Container started, cloud-init done.")
-
+        c = lxc.Container(self.container_name)
+        started = False
+        while not started:
+            if c.get_ips():
+                started = True
+            else:
+                time.sleep(1)
+                log.debug("Waiting...")
+                continue
         lxc_network = self.set_lxc_net_config()
         self.set_static_route(lxc_network)
 
-        log.debug("Installing openstack & openstack-single directly, "
-                  "and juju-local, libvirt-bin and lxc via deps")
-        Container.run(self.container_name,
-                      "env DEBIAN_FRONTEND=noninteractive apt-get -qy "
-                      "-o Dpkg::Options::=--force-confdef "
-                      "-o Dpkg::Options::=--force-confold "
-                      "install openstack openstack-single ", use_ssh=True)
-        log.debug("done installing deps")
+        # log.debug("Installing openstack & openstack-single directly, "
+        #           "and juju-local, libvirt-bin and lxc via deps")
+        # Container.run(self.container_name,
+        #               "env DEBIAN_FRONTEND=noninteractive apt-get -qy "
+        #               "-o Dpkg::Options::=--force-confdef "
+        #               "-o Dpkg::Options::=--force-confold "
+        #               "install openstack openstack-single ", use_ssh=True)
+        # log.debug("done installing deps")
 
     def copy_upstream_deb_async(self):
         return Async.pool.submit(self.copy_upstream_deb)
@@ -381,51 +369,5 @@ class SingleInstallAPI:
         it's not done yet, and raises an exception if it had errors.
 
         """
-        cmd = 'sudo cat /run/cloud-init/result.json'
-        try:
-            result_json = Container.run(self.container_name, cmd)
-
-        except NoContainerIPException as e:
-            log.debug("Container has no IPs according to lxc-info. "
-                      "Will retry.")
-            return False
-
-        except ContainerRunException as e:
-            _, returncode = e.args
-            if returncode == 255:
-                if tries < maxlenient:
-                    log.debug("Ignoring initial SSH error.")
-                    return False
-                raise e
-            if returncode == 1:
-                # the 'cat' did not find the file.
-                if tries < 1:
-                    log.debug("Waiting for cloud-init status result")
-                return False
-            else:
-                log.debug("Unexpected return code from reading "
-                          "cloud-init status in container.")
-                raise e
-
-        if result_json == '':
-            return False
-
-        try:
-            ret = json.loads(result_json)
-        except Exception as e:
-            if tries < maxlenient + 10:
-                log.debug("exception trying to parse '{}'"
-                          " - retrying".format(result_json))
-                return False
-
-            log.error(str(e))
-            log.debug("exception trying to parse '{}'".format(result_json))
-            raise e
-
-        errors = ret['v1']['errors']
-        if len(errors):
-            log.error("Container cloud-init finished with "
-                      "errors: {}".format(errors))
-            raise Exception("Top-level container OS did not initialize "
-                            "correctly.")
-        return True
+        # Container.wait(self.container_name)
+        return

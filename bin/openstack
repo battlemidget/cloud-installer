@@ -34,6 +34,7 @@ from cloudinstall.cli.config import ConfigCmd
 # This really only happens when a binary is not in the usual /usr/bin location
 lib_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, lib_dir)
+CFG_DIR = os.path.join(utils.install_home(), '.cloud-install')
 
 
 def parse_options():
@@ -76,6 +77,10 @@ def parse_options():
 
 def main():
     opts = parse_options()
+
+    if not os.path.exists(CFG_DIR):
+        os.makedirs(CFG_DIR)
+        utils.chown(CFG_DIR, utils.install_user())
 
     try:
         setup_logger()

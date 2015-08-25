@@ -19,6 +19,7 @@ REST server for managing the install and state of an OpenStack install
 """
 
 import logging
+import os
 import configparser
 from tornado import ioloop
 from tornado.web import Application, url
@@ -38,14 +39,16 @@ class AgentCmd:
         with open('/etc/openstack/agent.conf', 'w') as cfg_w:
             self.cfg.write(cfg_w)
 
+        if not os.path.isdir('/var/lib/openstack-agent'):
+            log.debug("Creating runtime config dir.")
+            os.makedirs("/var/lib/openstack-agent")
+
     def main(self):
         log.info("Running: Ubuntu OpenStack Agent")
 
         urls = [
             url(r"/api/config",
-                "cloudinstall.agent.controllers.Config"),
-            url(r"/api/install/single/ssh_keys",
-                "cloudinstall.agent.controllers.SshKeys")
+                "cloudinstall.agent.controllers.ConfigHandler")
         ]
 
         settings = dict(

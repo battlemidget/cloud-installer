@@ -59,7 +59,35 @@ class InstallCmd:
         return config
 
     def main(self):
+        if os.geteuid() != 0:
+            sys.exit(
+                "Installing a cloud requires root privileges. Rerun with sudo")
+
         log.info("Running: Ubuntu OpenStack Install")
+
+        # New install, write default config
+        if not os.path.isfile(CFG_FILE):
+            try:
+                config = utils.read_ini('/usr/share/openstack/config.conf')
+            except Exception as e:
+                print(e)
+                sys.exit(1)
+            config = self.set_config_defaults(config)
+            utils.write_ini(config)
+        elif os.path.isfile(CFG_FILE) and not self.opts.advanced:
+            msg = ("An existing configuration was found at "
+                   "~/.cloud-install/config.conf. This could indicate an "
+                   "existing install. If you are wanting to do further "
+                   "customizations before install please re-try with \n\n"
+                   "$ sudo openstack-install --advanced\n\n"
+                   "This will bring up the installer in advanced "
+                   "configuration mode and allow you to fine-tune "
+                   "the install further.")
+            print(msg)
+            sys.exit(1)
+        else:
+            config = utils.read_ini_existing()
+        log.debug("Current Config: {}".format(dict(config)))
         if self.opts.uninstall:
             msg = (
                 "Warning:\n\nThis will uninstall OpenStack and "
@@ -87,69 +115,38 @@ class InstallCmd:
             print("  export LANGUAGE=en_US.UTF-8")
             sys.exit(1)
 
-        # validate series exists for nclxd
-        # if opts.use_nclxd and opts.ubuntu_series[0] < 'v':
-        #     print("You must pass --series vivid or higher in order to use nclxd.")
-        #     sys.exit(1)
-
-        # New install, write default config
-        if not os.path.exists(CFG_DIR):
-            os.makedirs(CFG_DIR)
-            utils.chown(CFG_DIR, utils.install_user())
-            config = utils.read_ini('/usr/share/openstack/config.conf')
-            config = self.set_config_defaults(config)
-            utils.write_ini(config)
-        elif os.path.isfile(CFG_FILE) and not self.opts.advanced:
-            msg = ("An existing configuration was found at "
-                   "~/.cloud-install/config.conf. This could indicate an "
-                   "existing install. If you are wanting to do further "
-                   "customizations before install please re-try with \n\n"
-                   "$ sudo openstack-install --advanced\n\n"
-                   "This will bring up the installer in advanced "
-                   "configuration mode and allow you to fine-tune "
-                   "the install further.")
-            print(msg)
-            sys.exit(1)
-        else:
-            config = utils.read_ini_existing()
-
         if self.opts.advanced:
             config['runtime'] = {}
             config['runtime']['advanced_config'] = "yes"
             utils.write_ini(config)
 
-        if os.geteuid() != 0:
-            sys.exit(
-                "Installing a cloud requires root privileges. Rerun with sudo")
+        # # TODO: move this into agent
+        # juju_path = config['settings.juju']['path']
+        # if not os.path.exists(juju_path):
+        #     log.info("Creating juju directories: {}".format(juju_path))
+        #     os.makedirs(juju_path)
+        #     utils.chown(juju_path, utils.install_user(), utils.install_user())
 
-        # TODO: move this into agent
-        juju_path = config['settings.juju']['path']
-        if not os.path.exists(juju_path):
-            log.info("Creating juju directories: {}".format(juju_path))
-            os.makedirs(juju_path)
-            utils.chown(juju_path, utils.install_user(), utils.install_user())
-
-        if os.path.isfile(os.path.join(CFG_DIR, 'installed')):
-            msg = ("\n\nError:\n\n"
-                   "Previous installation detected. Did you mean to run "
-                   "openstack-status instead? \n"
-                   "If attempting to re-install please run "
-                   "    $ sudo openstack-install -u\n\n")
-            print(msg)
-            sys.exit(1)
-
-        out = utils.get_command_output(
-            '{} juju api-endpoints'.format(
-                config['settings.juju']['home']), user_sudo=True)
-        if out['status'] == 0:
-            msg = ("Existing OpenStack environment detected. Please destroy "
-                   "that environment before proceeding with a new install.")
-            print(msg)
-            sys.exit(1)
+        # if os.path.isfile(os.path.join(CFG_DIR, 'installed')):
+        #     msg = ("\n\nError:\n\n"
+        #            "Previous installation detected. Did you mean to run "
+        #            "openstack-status instead? \n"
+        #            "If attempting to re-install please run "
+        #            "    $ sudo openstack-install -u\n\n")
+        #     print(msg)
+        #     sys.exit(1)
+        # out = utils.get_command_output(
+        #     '{} juju api-endpoints'.format(
+        #         config['settings.juju']['home_expanded']), user_sudo=True)
+        # if out['status'] == 0:
+        #     msg = ("Existing OpenStack environment detected. Please destroy "
+        #            "that environment before proceeding with a new install.")
+        #     print(msg)
+        #     sys.exit(1)
 
         ui = OpenstackInstallUI()
 
-        # Choose event loop
+        # Setup event loop
         ev = EventLoop(ui)
 
-        return InstallController(ui=ui, loop=ev)
+        return InstallController(ui=ui, loop=ev).start()

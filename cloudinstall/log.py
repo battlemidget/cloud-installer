@@ -1,7 +1,4 @@
-#
-# log.py - Logger
-#
-# Copyright 2014 Canonical, Ltd.
+# Copyright 2014, 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -72,7 +69,7 @@ def setup_logger(name=__name__, headless=False):
     CONFIG_DIR = '.cloud-install'
     CONFIG_PATH = os.path.join(HOME, CONFIG_DIR)
     if not os.path.isdir(CONFIG_PATH):
-        os.makedirs(CONFIG_PATH)
+        raise Exception("Unable to read ~/.cloud-install directory.")
     LOGFILE = os.path.join(CONFIG_PATH, 'commands.log')
     commandslog = TimedRotatingFileHandler(LOGFILE,
                                            when='D',

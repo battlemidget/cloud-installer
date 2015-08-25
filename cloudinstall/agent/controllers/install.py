@@ -21,21 +21,7 @@ import cloudinstall.utils as utils
 from tornado.gen import coroutine
 
 
-class SshKeysHandler(BaseHandler):
-    """ Store ssh key for agent runner
-
-    POST /api/install/ssh_keys
-      { ssh_priv_key: "",
-        ssh_pub_key: ""
-       }
-    """
+class UserdataController(BaseHandler):
     @coroutine
-    def post(self):
-        params = self.params_to_dict()
-        pass
-
-
-class InstallController(BaseHandler):
-    @coroutine
-    def post(self):
+    def post(self, params):
         pass

@@ -44,7 +44,6 @@ class InstallController:
 
         # Add quit signal
         signals.append(('quit', self.loop.exit))
-        signals.append(('stop-loop', self.loop.stop))
         signals.append(('refresh', self.loop.redraw_screen))
         self.signal.connect_signals(signals)
 
@@ -52,9 +51,6 @@ class InstallController:
         for controller, controller_class in self.controllers.items():
             controller_class.register_signals()
         log.debug(self.signal)
-
-    def update(self, *args, **kwargs):
-        pass
 
     def start(self):
         """ Start installer eventloop
@@ -65,4 +61,5 @@ class InstallController:
     # Display Install view mode -----------------------------------------------
     #  Start the initial UI view.
     def install(self, *args, **kwargs):
+        log.debug("Starting install path")
         self.controllers['installpath'].install()

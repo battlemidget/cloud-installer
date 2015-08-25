@@ -13,4 +13,15 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from .base import Client  # NOQA
+
+class Config:
+    def __init__(self, client):
+        self.client = client
+
+    def save(self, params):
+        """ Saves config in the agent """
+        return self.client.post("/config", params=params)
+
+    def load(self):
+        """ Loads client config from agent """
+        return self.client.get("/config")

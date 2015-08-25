@@ -32,8 +32,11 @@ class ConfigHandler(BaseHandler):
     """
     @coroutine
     def post(self):
-        settings = self.client_settings(self.params_to_dict())
-        if settings['settings']['install_type'] == "Single":
-            self.application.settings['run_as'] = "ubuntu"
+        self.client_settings(self.params_to_dict())
         self.render_json({"status": 200,
                           "message": "Client configuration stored."})
+
+    @coroutine
+    def get(self):
+        self.render_json({"status": 200,
+                         "content": self.client_settings()})

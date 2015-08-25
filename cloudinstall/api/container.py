@@ -1,4 +1,3 @@
-#
 # Copyright 2014, 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
@@ -14,18 +13,13 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import subprocess
 from subprocess import (check_output,
                         CalledProcessError,
                         STDOUT)
 import logging
-import shlex
-import pty
 import os
-import codecs
-import errno
 import lxc
-from collections import deque
+import sys
 from cloudinstall import utils
 
 log = logging.getLogger("cloudinstall.api.container")
@@ -42,6 +36,7 @@ class ContainerRunException(Exception):
 
 
 class Container:
+
     @classmethod
     def ip(cls, name):
         try:
@@ -56,133 +51,18 @@ class Container:
             log.exception("error calling lxc-info to get container IP")
             raise NoContainerIPException()
 
-    @classmethod
-    def run(cls, name, cmd, use_ssh=False, output_cb=None):
-        """ run command in container
+    # @classmethod
+    # def cp(cls, filepath, dst):
+    #     """ copy file to container
 
-        :param str name: name of container
-        :param str cmd: command to run
-        """
-
-        if use_ssh:
-            ip = cls.ip(name)
-            quoted_cmd = shlex.quote(cmd)
-            wrapped_cmd = ("sudo -H -u {3} TERM=xterm256-color ssh -t -q "
-                           "-l ubuntu -o \"StrictHostKeyChecking=no\" "
-                           "-o \"UserKnownHostsFile=/dev/null\" "
-                           "-o \"ControlMaster=auto\" "
-                           "-o \"ControlPersist=600\" "
-                           "-i {2} "
-                           "{0} {1}".format(ip, quoted_cmd,
-                                            utils.ssh_privkey(),
-                                            utils.install_user()))
-        else:
-            ip = "-"
-            quoted_cmd = cmd
-            wrapped_cmd = ("lxc-attach -n {container_name} -- "
-                           "{cmd}".format(container_name=name,
-                                          cmd=cmd))
-
-        stdoutmaster, stdoutslave = pty.openpty()
-        subproc = subprocess.Popen(wrapped_cmd, shell=True,
-                                   stdout=stdoutslave,
-                                   stderr=subprocess.PIPE)
-        os.close(stdoutslave)
-        decoder = codecs.getincrementaldecoder('utf-8')()
-
-        def last_ten_lines(s):
-            chunk = s[-1500:]
-            lines = chunk.splitlines(True)
-            return ''.join(lines[-10:]).replace('\r', '')
-
-        decoded_output = ""
-        try:
-            while subproc.poll() is None:
-                try:
-                    b = os.read(stdoutmaster, 512)
-                except OSError as e:
-                    if e.errno != errno.EIO:
-                        raise
-                    break
-                else:
-                    final = False
-                    if not b:
-                        final = True
-                    decoded_chars = decoder.decode(b, final)
-                    if decoded_chars is None:
-                        continue
-
-                    decoded_output += decoded_chars
-                    if output_cb:
-                        ls = last_ten_lines(decoded_output)
-
-                        output_cb(ls)
-                    if final:
-                        break
-        finally:
-            os.close(stdoutmaster)
-            if subproc.poll() is None:
-                subproc.kill()
-            subproc.wait()
-
-        errors = [l.decode('utf-8') for l in subproc.stderr.readlines()]
-        if output_cb:
-            output_cb(last_ten_lines(decoded_output))
-
-        errors = ''.join(errors)
-
-        if subproc.returncode == 0:
-            return decoded_output.strip()
-        else:
-            log.debug("Error with command: "
-                      "[Output] '{}' [Error] '{}'".format(
-                          decoded_output.strip(),
-                          errors.strip()))
-
-            raise ContainerRunException("Problem running {0} in container "
-                                        "{1}:{2}".format(quoted_cmd, name, ip),
-                                        subproc.returncode)
-
-    @classmethod
-    def run_status(cls, name, cmd, config):
-        """ Runs cloud-status in container
-        """
-        ip = cls.ip(name)
-        cmd = ("sudo -H -u {2} TERM=xterm256-color ssh -t -q "
-               "-l ubuntu -o \"StrictHostKeyChecking=no\" "
-               "-o \"UserKnownHostsFile=/dev/null\" "
-               "-o \"ControlMaster=auto\" "
-               "-o \"ControlPersist=600\" "
-               "-i {1} "
-               "{0} {3}".format(ip, utils.ssh_privkey(),
-                                utils.install_user(), cmd))
-        log.debug("Running command without waiting "
-                  "for response.: {}".format(cmd))
-        args = deque(shlex.split(cmd))
-        os.execlp(args.popleft(), *args)
-
-    @classmethod
-    def cp(cls, name, filepath, dst):
-        """ copy file to container
-
-        :param str name: name of container
-        :param str filepath: file to copy to container
-        :param str dst: destination of remote path
-        """
-        ip = cls.ip(name)
-        cmd = ("scp -r -q "
-               "-o \"StrictHostKeyChecking=no\" "
-               "-o \"UserKnownHostsFile=/dev/null\" "
-               "-i {identity} "
-               "{filepath} "
-               "ubuntu@{ip}:{dst} ".format(ip=ip, dst=dst,
-                                           identity=utils.ssh_privkey(),
-                                           filepath=filepath))
-        ret = utils.get_command_output(cmd)
-        if ret['status'] > 0:
-            raise Exception("There was a problem copying ({0}) to the "
-                            "container ({1}:{2}): {3}".format(
-                                filepath, name, ip, ret['output']))
+    #     :param str name: name of container
+    #     :param str filepath: file to copy to container
+    #     :param str dst: destination of remote path
+    #     """
+    #     params = {
+    #         'file': filepath,
+    #         'dst': dst
+    #     }
 
     @classmethod
     def create(cls, name, userdata):
@@ -192,36 +72,30 @@ class Container:
         # ubuntu template's image cache and forces a re-download. It
         # should be removed after https://github.com/lxc/lxc/issues/381 is
         # resolved.
-        log.debug("API: Create container: {}, {}".format(name, userdata))
         flushflag = "-F"
         if os.getenv("USE_LXC_IMAGE_CACHE"):
             log.debug("USE_LXC_IMAGE_CACHE set, so not flushing in lxc-create")
             flushflag = ""
-        out = utils.get_command_output(
-            'sudo -E lxc-create -t ubuntu-cloud '
-            '-n {name} -- {flushflag} '
-            '-u {userdatafilename}'.format(name=name,
-                                           flushflag=flushflag,
-                                           userdatafilename=userdata))
-        if out['status'] > 0:
-            raise Exception("Unable to create container: "
-                            "{0}".format(out['output']))
-        return out['status']
+        c = lxc.Container(name)
+        if not c.create(template="ubuntu-cloud",
+                        args=(flushflag, '-u', userdata)):
+            raise Exception(
+                "Unable to create container.")
 
     @classmethod
-    def start(cls, name, lxc_logfile):
+    def set_config_item(cls, name, key, value):
+        c = lxc.Container(name)
+        c.set_config_item(key, value)
+
+    @classmethod
+    def start(cls, name):
         """ starts lxc container
 
         :param str name: name of container
         """
-        out = utils.get_command_output(
-            'sudo lxc-start -n {0} -d -o {1}'.format(name,
-                                                     lxc_logfile))
-
-        if out['status'] > 0:
-            raise Exception("Unable to start container: "
-                            "{0}".format(out['output']))
-        return out['status']
+        c = lxc.Container(name)
+        if not c.start():
+            raise Exception("Unable to start container: {}".format(sys.stderr))
 
     @classmethod
     def stop(cls, name):
@@ -229,14 +103,9 @@ class Container:
 
         :param str name: name of container
         """
-        out = utils.get_command_output(
-            'sudo lxc-stop -n {0}'.format(name))
-
-        if out['status'] > 0:
-            raise Exception("Unable to stop container: "
-                            "{0}".format(out['output']))
-
-        return out['status']
+        c = lxc.Container(name)
+        if not c.stop():
+            raise Exception("Unable to stop container: {}".format(sys.stderr))
 
     @classmethod
     def destroy(cls, name):
@@ -285,9 +154,8 @@ class Container:
 
         :param str name: name of container
         """
-        out = utils.get_command_output(
-            'sudo lxc-wait -n {0} -s RUNNING'.format(name))
-        return out['status']
+        c = lxc.Container(name)
+        return c
 
     @classmethod
     def status(cls, name):
