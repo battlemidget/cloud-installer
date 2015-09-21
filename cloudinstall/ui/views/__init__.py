@@ -14,3 +14,4 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from .error import ErrorView  # NOQA
+from .services import ServicesView  # NOQA
