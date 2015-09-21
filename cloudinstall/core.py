@@ -80,6 +80,7 @@ class Controller:
         interval = 1
 
         current_state = self.config.getopt('current_state')
+        log.debug("current state: {}".format(current_state))
         if current_state == ControllerState.PLACEMENT:
             self.ui.render_placement_view(self.loop,
                                           self.config,
@@ -97,7 +98,7 @@ class Controller:
             raise Exception("Internal error, unexpected display "
                             "state '{}'".format(current_state))
 
-        self.loop.redraw_screen()
+        # self.loop.redraw_screen()
         AlarmMonitor.add_alarm(self.loop.set_alarm_in(interval, self.update))
 
     def update_node_states(self):
@@ -131,8 +132,9 @@ class Controller:
         if len(self.nodes) == 0:
             return
         else:
-            self.ui.render_services_view(self.nodes, self.juju_state,
-                                         self.maas_state, self.config)
+            self.ui.render_services_view(
+                self.nodes, self.juju_state,
+                self.maas_state, self.config)
 
     def authenticate_juju(self):
         if not len(self.config.juju_env['state-servers']) > 0:

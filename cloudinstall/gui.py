@@ -421,8 +421,9 @@ class PegasusGUI(WidgetWrap):
         self.frame.set_footer(self.frame.footer)
 
     def render_services_view(self, nodes, juju_state, maas_state, config):
-        self.frame.body = ServicesView(nodes, juju_state, maas_state,
-                                       config)
+        self.services_view = ServicesView(nodes, juju_state, maas_state,
+                                          config)
+        self.frame.body = self.services_view
         self.header.set_show_add_units_hotkey(True)
 
     def render_node_install_wait(self, message=None, **kwargs):

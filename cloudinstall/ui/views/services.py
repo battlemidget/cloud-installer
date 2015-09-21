@@ -21,64 +21,95 @@ from urwid import (Text, Columns, WidgetWrap,
                    Pile, ListBox, Divider)
 from cloudinstall.status import get_sync_status
 from cloudinstall import utils
+from cloudinstall.ui.widgets import MachineWidget
 from cloudinstall.ui.utils import Color
 
 
 log = logging.getLogger('cloudinstall.ui.views.services')
 
 
+class ServiceColumn:
+
+    def __init__(self):
+        self.columns = {}
+
+    def add(self, key, heading):
+        self.columns[key] = Pile([
+            Color.column_header(Text(heading))
+        ])
+
+    def get(self, key):
+        return self.columns[key]
+
+    def add_to(self, key, w):
+        """ Append item to specified column pile
+        """
+        pile = self.get(key)
+        pile.contents.append((w, pile.options()))
+        pile.contents.append((
+            Divider("\N{BOX DRAWINGS LIGHT HORIZONTAL}"),
+            pile.options()))
+
+    def contents(self, key):
+        return self.get(key).contents
+
+    def render(self):
+        """ Renders columns with proper spacing
+        """
+        items = []
+        for col in self.columns.keys():
+            # Dont set fixed width for service name
+            if col == "services":
+                items.append(self.columns[col])
+                continue
+            items.append(('fixed', len(col)+1, self.columns[col]))
+        return items
+
+
 class ServicesView(WidgetWrap):
 
+    view_columns = [
+        ('icon', ""),
+        ('display_name', "Service"),
+        ('agent_state', "Status"),
+        ('public_address', "IP"),
+        ('container', "Container"),
+        ('machine', "Machine"),
+        ('arch', "Arch"),
+        ('cpu_cores', "Cores"),
+        ('mem', "Mem"),
+        ('storage', "Storage")
+    ]
+
     def __init__(self, nodes, juju_state, maas_state, config):
-        nodes = [] if nodes is None else nodes
+        self.columns = ServiceColumn()
+        self.nodes = [] if nodes is None else nodes
         self.juju_state = juju_state
         self.maas_state = maas_state
         self.config = config
+        self.machine_w = None
         self.log_cache = None
-        self.icons = Pile([
-            Color.column_header(Text(""))])
-        self.services = Pile([
-            Color.column_header(Text("Service"))])
-        self.statuses = Pile([
-            Color.column_header(Text("Status"))])
-        self.ips = Pile([
-            Color.column_header(Text("IP"))])
-        self.containers = Pile([
-            Color.column_header(Text("Container"))])
-        self.machines = Pile([
-            Color.column_header(Text("Machine"))])
-        self.arches = Pile([
-            Color.column_header(Text("Arch"))])
-        self.cores = Pile([
-            Color.column_header(Text("Cores"))])
-        self.mems = Pile([
-            Color.column_header(Text("Mem"))])
-        self.storages = Pile([
-            Color.column_header(Text("Storage"))])
-        super().__init__(self._build_widget(nodes))
 
-    def _build_widget(self, nodes):
-        column_headers = [
-            ('fixed', 2, self.icons),
-            self.services,
-            ('fixed', 8, self.statuses),
-            ('fixed', 15, self.ips),
-            ('fixed', 10, self.containers),
-            ('fixed', 10, self.machines),
-            ('fixed', 6, self.arches),
-            ('fixed', 6, self.cores),
-            ('fixed', 6, self.mems),
-            ('fixed', 8, self.storages)
-        ]
-        node_cols = [
-            Columns(column_headers)
-        ]
+        for c in self.view_columns:
+            self.columns.add(c)
+        super().__init__(self._build_widget())
+
+    def _build_widget(self):
+        for node in self.nodes:
+            charm_class, service = node
+            if len(service.units) > 0:
+                for u in sorted(service.units, key=attrgetter('unit_name')):
+                    self.initialize_column(u, charm_class)
+        return ListBox(Columns(self.columns.render()))
+
+    def update(self, nodes):
+        """ Updates individual machine information
+        """
         for node in nodes:
             charm_class, service = node
             if len(service.units) > 0:
                 for u in sorted(service.units, key=attrgetter('unit_name')):
-                    self._build_node_columns(u, charm_class)
-        return ListBox(node_cols)
+                    self.initialize_column(u, charm_class)
 
     def _generate_status(self, unit, charm_class):
         result = {
@@ -118,41 +149,28 @@ class ServicesView(WidgetWrap):
 
         return result
 
-    def _add_to_pile(self, pile, w):
-        pile.contents.append((w, pile.options()))
-        pile.contents.append((
-            Divider("\N{BOX DRAWINGS LIGHT HORIZONTAL}", 1, 1),
-            pile.options()))
+    def initialize_column(self, unit, charm_class):
+        """ Initial rendering of columns with service information
+        """
+        hwinfo = self._get_hardware_info(unit)
+        self.machine_w = MachineWidget(unit, charm_class, hwinfo)
 
-    def _build_node_columns(self, unit, charm_class):
-        """ builds columns of node status """
         status = self._generate_status(unit, charm_class)
-        self._add_to_pile(self.icons, status['icon'])
+        self.machine_w.icon = status['icon']
+        self.columns.add_to('icons', self.machine_w.icon)
 
-        display_name = charm_class.display_name
         if 'glance-simplestreams-sync' in unit.unit_name:
             status_oneline = get_sync_status().replace("\n", " - ")
-            display_name = "{} ({})".format(display_name, status_oneline)
+            self.machine_w.display_name.set_text(
+                "{} ({})".format(self.machine_w.display_name, status_oneline))
 
-        self._add_to_pile(self.services, Text(display_name))
-        self._add_to_pile(self.statuses, Text(unit.agent_state))
-        if unit.public_address:
-            self._add_to_pile(self.ips, Text(unit.public_address))
-        elif status['error']:
-            self._add_to_pile(self.ips, Text("Error"))
-        else:
-            self._add_to_pile(self.ips, Text("IP Pending"))
         if status['error']:
-            self._add_to_pile(self.ips, Text(status['error']))
+            self.machine_w.public_address.set_text(status['error'])
         else:
-            hwinfo = self._get_hardware_info(unit)
-            if 'container' in hwinfo:
-                self._add_to_pile(self.containers, Text(hwinfo['container']))
-            self._add_to_pile(self.machines, Text(hwinfo['machine']))
-            self._add_to_pile(self.arches, Text(hwinfo['arch']))
-            self._add_to_pile(self.cores, Text(hwinfo['cores']))
-            self._add_to_pile(self.mems, Text(hwinfo['mem']))
-            self._add_to_pile(self.storages, Text(hwinfo['storage']))
+            self.machine_w.public_address.set_text("IP Pending")
+
+        for k, label in self.view_columns:
+            self.columns.add_to(k, getattr(self.machine_w, k))
 
     def _get_hardware_info(self, unit):
         """Get hardware info from juju or maas
@@ -209,12 +227,12 @@ class ServicesView(WidgetWrap):
         base_id = base_machine.machine_id
         hw_info = self._hardware_info_for_machine(m)
         hw_info['machine'] = base_id
-        hw_info['container'] = container_id if container_id else 'x'
+        hw_info['container'] = 'x' if not container_id else container_id
         return hw_info
 
     def _hardware_info_for_machine(self, m):
         return {"arch": m.arch,
-                "cores": m.cpu_cores,
+                "cpu_cores": m.cpu_cores,
                 "mem": m.mem,
                 "storage": m.storage}
 
