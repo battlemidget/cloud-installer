@@ -98,8 +98,9 @@ class Controller:
             raise Exception("Internal error, unexpected display "
                             "state '{}'".format(current_state))
 
-        # self.loop.redraw_screen()
-        AlarmMonitor.add_alarm(self.loop.set_alarm_in(interval, self.update))
+        self.loop.redraw_screen()
+        AlarmMonitor.add_alarm(self.loop.set_alarm_in(interval, self.update),
+                               "core-controller-update")
 
     def update_node_states(self):
         """ Updating node states
@@ -650,7 +651,7 @@ class Controller:
             self.ui.status_info_message("Welcome")
             self.initialize()
             self.loop.register_callback('refresh_display', self.update)
-            AlarmMonitor.add_alarm(
-                self.loop.set_alarm_in(0, self.update))
+            AlarmMonitor.add_alarm(self.loop.set_alarm_in(0, self.update),
+                                   "controller-start")
             self.loop.run()
             self.loop.close()
