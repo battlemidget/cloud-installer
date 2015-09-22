@@ -101,8 +101,8 @@ class Controller:
                             "state '{}'".format(current_state))
 
         # self.loop.redraw_screen()
-        # AlarmMonitor.add_alarm(self.loop.set_alarm_in(interval, self.update),
-        #                        "core-controller-update")
+        AlarmMonitor.add_alarm(self.loop.set_alarm_in(interval, self.update),
+                               "core-controller-update")
 
     def update_node_states(self):
         """ Updating node states
@@ -135,9 +135,12 @@ class Controller:
         if len(self.nodes) == 0:
             return
         else:
-            self.ui.render_services_view(
-                self.nodes, self.juju_state,
-                self.maas_state, self.config)
+            if not self.ui.services_view:
+                self.ui.render_services_view(
+                    self.nodes, self.juju_state,
+                    self.maas_state, self.config)
+            else:
+                self.ui.services_view.update(self.nodes)
 
     def authenticate_juju(self):
         if not len(self.config.juju_env['state-servers']) > 0:
