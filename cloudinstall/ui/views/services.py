@@ -90,8 +90,8 @@ class ServicesView(WidgetWrap):
         self.machine_w = None
         self.log_cache = None
 
-        for c in self.view_columns:
-            self.columns.add(c)
+        for key, label in self.view_columns:
+            self.columns.add(key, label)
         super().__init__(self._build_widget())
 
     def _build_widget(self):
@@ -109,7 +109,9 @@ class ServicesView(WidgetWrap):
             charm_class, service = node
             if len(service.units) > 0:
                 for u in sorted(service.units, key=attrgetter('unit_name')):
-                    self.initialize_column(u, charm_class)
+                    # These are really the only dynamic properties
+                    self.machine_w.public_address.set_text(u.public_address)
+                    self.machine_w.agent_state.set_text(u.agent_state)
 
     def _generate_status(self, unit, charm_class):
         result = {
@@ -157,7 +159,7 @@ class ServicesView(WidgetWrap):
 
         status = self._generate_status(unit, charm_class)
         self.machine_w.icon = status['icon']
-        self.columns.add_to('icons', self.machine_w.icon)
+        self.columns.add_to('icon', self.machine_w.icon)
 
         if 'glance-simplestreams-sync' in unit.unit_name:
             status_oneline = get_sync_status().replace("\n", " - ")
@@ -227,14 +229,16 @@ class ServicesView(WidgetWrap):
         base_id = base_machine.machine_id
         hw_info = self._hardware_info_for_machine(m)
         hw_info['machine'] = base_id
-        hw_info['container'] = 'x' if not container_id else container_id
+        hw_info['container'] = container_id
         return hw_info
 
     def _hardware_info_for_machine(self, m):
         return {"arch": m.arch,
                 "cpu_cores": m.cpu_cores,
                 "mem": m.mem,
-                "storage": m.storage}
+                "storage": m.storage,
+                "container": 'x',
+                "machine": 0}
 
     def _detect_errors(self, unit, charm_class):
         """Look in multiple places for an error.

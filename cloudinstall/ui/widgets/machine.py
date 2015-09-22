@@ -16,7 +16,10 @@
 """ Machine widget, easily display hardware attributes
 and updates
 """
+import logging
 from urwid import WidgetWrap, Text
+
+log = logging.getLogger('cloudinstall.ui.widgets.machine')
 
 
 class MachineWidget(WidgetWrap):
@@ -28,7 +31,7 @@ class MachineWidget(WidgetWrap):
         self.cpu_cores = Text(self.hwinfo['cpu_cores'])
         self.mem = Text(self.hwinfo['mem'])
         self.storage = Text(self.hwinfo['storage'])
-        self.display_name = Text(charm_class.diplay_name)
+        self.display_name = Text(charm_class.display_name)
         self.agent_state = Text(unit.agent_state)
         self.public_address = Text(unit.public_address)
         self.icon = None
