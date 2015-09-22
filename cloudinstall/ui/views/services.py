@@ -56,14 +56,17 @@ class ServiceColumn:
     def render(self):
         """ Renders columns with proper spacing
         """
-        items = []
-        for col in self.columns.keys():
-            # Dont set fixed width for service name
-            if col == "services":
-                items.append(self.columns[col])
-                continue
-            items.append(('fixed', len(col)+1, self.columns[col]))
-        return items
+        items = [('fixed', 2, self.get('icon')),
+                 self.get('display_name'),
+                 ('fixed', 10, self.get('agent_state')),
+                 ('fixed', 12, self.get('public_address')),
+                 ('fixed', 10, self.get('container')),
+                 ('fixed', 9, self.get('machine')),
+                 ('fixed', 7, self.get('arch')),
+                 ('fixed', 6, self.get('cpu_cores')),
+                 ('fixed', 7, self.get('mem')),
+                 ('fixed', 7, self.get('storage'))]
+        return Columns(items)
 
 
 class ServicesView(WidgetWrap):
@@ -75,9 +78,9 @@ class ServicesView(WidgetWrap):
         ('public_address', "IP"),
         ('container', "Container"),
         ('machine', "Machine"),
-        ('arch', "Arch"),
+        ('arch', "Arch "),
         ('cpu_cores', "Cores"),
-        ('mem', "Mem"),
+        ('mem', "Mem "),
         ('storage', "Storage")
     ]
 
@@ -100,7 +103,7 @@ class ServicesView(WidgetWrap):
             if len(service.units) > 0:
                 for u in sorted(service.units, key=attrgetter('unit_name')):
                     self.initialize_column(u, charm_class)
-        return ListBox(Columns(self.columns.render()))
+        return ListBox([self.columns.render()])
 
     def update(self, nodes):
         """ Updates individual machine information
@@ -159,17 +162,17 @@ class ServicesView(WidgetWrap):
 
         status = self._generate_status(unit, charm_class)
         self.machine_w.icon = status['icon']
-        self.columns.add_to('icon', self.machine_w.icon)
 
         if 'glance-simplestreams-sync' in unit.unit_name:
             status_oneline = get_sync_status().replace("\n", " - ")
             self.machine_w.display_name.set_text(
-                "{} ({})".format(self.machine_w.display_name, status_oneline))
+                "{} ({})".format(self.machine_w.display_name.get_text()[0],
+                                 status_oneline))
 
         if status['error']:
             self.machine_w.public_address.set_text(status['error'])
-        else:
-            self.machine_w.public_address.set_text("IP Pending")
+        # else:
+        #     self.machine_w.public_address.set_text("IP Pending")
 
         for k, label in self.view_columns:
             self.columns.add_to(k, getattr(self.machine_w, k))

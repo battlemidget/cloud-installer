@@ -100,9 +100,9 @@ class Controller:
             raise Exception("Internal error, unexpected display "
                             "state '{}'".format(current_state))
 
-        self.loop.redraw_screen()
-        AlarmMonitor.add_alarm(self.loop.set_alarm_in(interval, self.update),
-                               "core-controller-update")
+        # self.loop.redraw_screen()
+        # AlarmMonitor.add_alarm(self.loop.set_alarm_in(interval, self.update),
+        #                        "core-controller-update")
 
     def update_node_states(self):
         """ Updating node states
@@ -650,8 +650,6 @@ class Controller:
         if self.config.getopt('headless'):
             self.initialize()
         else:
-            log.debug(self.config.getopt('current_state'))
-            sys.exit()
             self.ui.status_info_message("Welcome")
             self.initialize()
             self.loop.register_callback('refresh_display', self.update)
