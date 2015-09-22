@@ -95,15 +95,14 @@ class ServicesView(WidgetWrap):
 
         for key, label in self.view_columns:
             self.columns.add(key, label)
-        super().__init__(self._build_widget())
+        super().__init__(ListBox([self.columns.render()]))
 
-    def _build_widget(self):
-        for node in self.nodes:
+    def refresh_nodes(self, nodes):
+        for node in nodes:
             charm_class, service = node
             if len(service.units) > 0:
                 for u in sorted(service.units, key=attrgetter('unit_name')):
-                    self.initialize_column(u, charm_class)
-        return ListBox([self.columns.render()])
+                    self.update_column(u, charm_class)
 
     def update(self, nodes):
         """ Updates individual machine information
@@ -154,14 +153,14 @@ class ServicesView(WidgetWrap):
 
         return result
 
-    def initialize_column(self, unit, charm_class):
-        """ Initial rendering of columns with service information
+    def update_column(self, unit, charm_class):
+        """ Update rendering of columns with service information
         """
         hwinfo = self._get_hardware_info(unit)
         self.machine_w = MachineWidget(unit, charm_class, hwinfo)
 
         status = self._generate_status(unit, charm_class)
-        self.machine_w.icon = status['icon']
+        self.machine_w.icon.set_text(status['icon'])
 
         if 'glance-simplestreams-sync' in unit.unit_name:
             status_oneline = get_sync_status().replace("\n", " - ")
@@ -171,8 +170,6 @@ class ServicesView(WidgetWrap):
 
         if status['error']:
             self.machine_w.public_address.set_text(status['error'])
-        # else:
-        #     self.machine_w.public_address.set_text("IP Pending")
 
         for k, label in self.view_columns:
             self.columns.add_to(k, getattr(self.machine_w, k))

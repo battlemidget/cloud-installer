@@ -82,7 +82,6 @@ class Controller:
         interval = 1
 
         current_state = self.config.getopt('current_state')
-        log.debug("current state: {}".format(current_state))
         if current_state == ControllerState.PLACEMENT:
             self.ui.render_placement_view(self.loop,
                                           self.config,
@@ -140,6 +139,7 @@ class Controller:
                     self.nodes, self.juju_state,
                     self.maas_state, self.config)
             else:
+                self.ui.services_view.refresh_nodes(self.nodes)
                 self.ui.services_view.update(self.nodes)
 
     def authenticate_juju(self):
