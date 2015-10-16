@@ -155,14 +155,12 @@ class TaskerConsole:
 
     """ Console tasker """
 
-    def __init__(self, display_controller, loop, config):
-        self.loop = loop
-        self.config = config
-        self.display_controller = display_controller
+    def __init__(self, ui):
+        self.ui = ui
         self.tasks = []
 
     def start_task(self, taskname, task_info_func=None):
-        log.info(taskname)
+        self.ui.status_info(taskname)
 
     def stop_current_task(self):
         pass

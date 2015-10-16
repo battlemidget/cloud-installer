@@ -387,77 +387,6 @@ class InstallHeader(WidgetWrap):
             self.TITLE_TEXT, release))
 
 
-class StatusBar(WidgetWrap):
-
-    """Displays text."""
-
-    INFO = "[INFO]"
-    ERROR = "[ERROR]"
-    ARROW = " \u21e8 "
-
-    def __init__(self, text=''):
-        self._pending_deploys = Text('')
-        self._status_line = Text(text, align="center")
-        self._horizon_url = Text('')
-        self._jujugui_url = Text('')
-        self._openstack_rel = Text('', align="right")
-        self._status_extra = self._build_status_extra()
-        status = Pile([self._pending_deploys,
-                       self._status_extra])
-        super().__init__(status)
-
-    def _build_status_extra(self):
-        return Color.frame_footer(
-            Pile([
-                self._horizon_url,
-                self._jujugui_url,
-                self._openstack_rel,
-                self._status_line
-            ]))
-
-    def set_dashboard_url(self, ip=None, user=None, password=None):
-        """ sets horizon dashboard url """
-        text = "Horizon: "
-        if not ip:
-            text += "(pending)"
-        else:
-            text += "https://{}/horizon l:{} p:{}".format(
-                ip, user, password)
-        return self._horizon_url.set_text(text)
-
-    def set_jujugui_url(self, ip=None):
-        """ sets juju gui url """
-        text = "{0:<21}".format("JujuGUI: ")
-        if not ip:
-            text += "(pending)"
-        else:
-            text += "https://{}/".format(ip)
-        return self._jujugui_url.set_text(text)
-
-    def message(self, text):
-        """Write `text` on the footer."""
-        self._status_line.set_text(text)
-
-    def error_message(self, text):
-        self.message([('status_error', self.ERROR),
-                      self.ARROW + text])
-
-    def info_message(self, text):
-        self.message([('status_info', self.INFO),
-                      self.ARROW + text])
-
-    def set_pending_deploys(self, pending_deploys):
-        if len(pending_deploys) > 0:
-            msg = "Pending deploys: " + ", ".join(pending_deploys)
-            self._pending_deploys.set_text(msg)
-        else:
-            self._pending_deploys.set_text('')
-
-    def clear(self):
-        """Clear the text."""
-        self._w.set_text('')
-
-
 class StepInfo(WidgetWrap):
 
     def __init__(self, msg=None):
@@ -511,7 +440,8 @@ class PegasusGUI(WidgetWrap):
         utils.register_async_exception_callback(cb)
         self.header = header if header else Header()
         self.body = body if body else Banner()
-        self.footer = footer if footer else StatusBar('')
+        # self.footer = footer if footer else StatusBar('')
+        self.footer = footer
 
         self.frame = Frame(self.body,
                            header=self.header,

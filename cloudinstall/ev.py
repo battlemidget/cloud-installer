@@ -30,10 +30,9 @@ class EventLoop:
     """ Abstracts out event loop
     """
 
-    def __init__(self, ui, config, log):
+    def __init__(self, ui, config):
         self.ui = ui
         self.config = config
-        self.log = log
         self.error_code = 0
         self._callback_map = {}
 
@@ -95,10 +94,7 @@ class EventLoop:
 
     def exit(self, err=0):
         self.error_code = err
-        self.log.info("Stopping eventloop")
-        if self.config.getopt('headless'):
-            sys.exit(err)
-
+        log.info("Stopping eventloop")
         if threading.current_thread() == self._loop_thread:
             raise urwid.ExitMainLoop()
         else:
