@@ -1,0 +1,33 @@
+default: manual
+
+environments:
+  manual:
+    type: manual
+    bootstrap-host: {{bootstrap_host}}
+    bootstrap-user: ubuntu
+    authorized-keys-path: ~/.ssh/id_rsa.pub
+    default-series: {{ubuntu_series}}
+    admin-secret: "{{openstack_password}}"
+{%- if apt_proxy %}
+    apt-http-proxy: {{apt_proxy}}
+{%- endif %}
+{%- if apt_https_proxy %}
+    apt-https-proxy: {{apt_https_proxy}}
+{%- endif %}
+{%- if http_proxy %}
+    http-proxy: {{http_proxy}}
+{%- endif %}
+{%- if https_proxy %}
+    https-proxy: {{https_proxy}}
+{%- endif %}
+{%- if no_proxy -%}
+    no-proxy: {{no_proxy}}
+{%- else %}
+    no-proxy: localhost
+{%- endif %}
+{%- if image_metadata_url -%}
+    image-metadata-url: {{image_metadata_url}}
+{%- endif %}
+{%- if tools_metadata_url -%}
+    tools-metadata-url: {{tools_metadata_url}}
+{%- endif %}

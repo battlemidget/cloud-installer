@@ -22,6 +22,7 @@ except ImportError:
     Mapping = dict
 
 from jinja2 import Environment, FileSystemLoader
+import platform
 import os
 import re
 import string
@@ -790,3 +791,9 @@ def parse_openstack_creds(creds_file):
         'auth_url': urlparse(m.group('authUrl')),
         'region_name': m.group('region')
     }
+
+
+def current_distro():
+    """ Returns current distro letter
+    """
+    return platform.linux_distribution()[2][0]

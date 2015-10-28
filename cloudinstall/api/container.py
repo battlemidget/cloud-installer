@@ -23,6 +23,9 @@ import pty
 import os
 import codecs
 import errno
+import time
+import tempfile
+import yaml
 from collections import deque
 from cloudinstall import utils
 
@@ -40,25 +43,50 @@ class ContainerRunException(Exception):
 
 
 class Container:
+
+    @classmethod
+    def import_images(cls):
+        out = subprocess.call("lxd-images import ubuntu --alias ubuntu")
+        return out == 0
+
+    @classmethod
+    def exists(cls, name):
+        out = subprocess.call("lxc info " + name, shell=True)
+        return out == 0
+
+    @classmethod
+    def get_status(cls, name):
+        s = subprocess.check_output("lxc info {} | grep Status".format(name),
+                                    shell=True,
+                                    stderr=subprocess.STDOUT).decode('utf-8')
+        return s
+
     @classmethod
     def ip(cls, name):
         try:
-            ips = check_output("sudo lxc-info -n {} -i -H".format(name),
-                               shell=True)
-            ips = ips.split()
-            log.debug("lxc-info found: '{}'".format(ips))
-            if len(ips) == 0:
+            ips = subprocess.check_output("lxc list {}".format(name),
+                                          shell=True).decode()
+            ips = ips.splitlines()
+            if len(ips) < 5:    # four lines of table drawing
+                log.debug("Container not shown in lxc list: {} ".format(ips))
                 raise NoContainerIPException()
-            log.debug("using {} as the container ip".format(ips[0].decode()))
-            return ips[0].decode()
-        except CalledProcessError:
-            log.exception("error calling lxc-info to get container IP")
+
+            ip = ips[3].split('|')[3].strip()
+            # that gives us a comma-sep list, take the first one:
+            ip = ip.split(',')[0]
+            log.debug("lxc ip found: '{}'".format(ip))
+            if len(ip) == 0:
+                raise NoContainerIPException()
+            log.debug("using {} as the container ip".format(ip))
+            return ip
+
+        except subprocess.CalledProcessError:
+            log.exception("error calling lxc list to get container IP")
             raise NoContainerIPException()
 
     @classmethod
-    def run(cls, name, cmd, use_ssh=False, use_sudo=False, output_cb=None):
+    def run(cls, name, cmd, use_ssh=False, output_cb=None):
         """ run command in container
-
         :param str name: name of container
         :param str cmd: command to run
         """
@@ -76,16 +104,12 @@ class Container:
                                             utils.ssh_privkey(),
                                             utils.install_user()))
         else:
-            ip = "-"
             quoted_cmd = cmd
-            wrapped_cmd = []
-            if use_sudo:
-                wrapped_cmd.append("sudo")
-            wrapped_cmd.append("lxc-attach -n {container_name} -- "
-                               "{cmd}".format(container_name=name,
-                                              cmd=cmd))
-            wrapped_cmd = " ".join(wrapped_cmd)
+            wrapped_cmd = ("lxc exec {container_name} -- "
+                           "{cmd}".format(container_name=name,
+                                          cmd=cmd))
 
+        log.debug("Final command to run:\n'{}'".format(wrapped_cmd))
         stdoutmaster, stdoutslave = pty.openpty()
         subproc = subprocess.Popen(wrapped_cmd, shell=True,
                                    stdout=stdoutslave,
@@ -138,7 +162,7 @@ class Container:
             return decoded_output.strip()
         else:
             raise ContainerRunException("Problem running {0} in container "
-                                        "{1}:{2}".format(quoted_cmd, name, ip),
+                                        "{1}".format(quoted_cmd, name),
                                         subproc.returncode)
 
     @classmethod
@@ -160,127 +184,133 @@ class Container:
         os.execlp(args.popleft(), *args)
 
     @classmethod
-    def cp(cls, name, filepath, dst):
+    def cp(cls, name, src, dst):
         """ copy file to container
-
         :param str name: name of container
-        :param str filepath: file to copy to container
-        :param str dst: destination of remote path
+        :param str src: file to copy to container
+        :param str dst: destination full path
         """
-        ip = cls.ip(name)
-        cmd = ("scp -r -q "
-               "-o \"StrictHostKeyChecking=no\" "
-               "-o \"UserKnownHostsFile=/dev/null\" "
-               "-i {identity} "
-               "{filepath} "
-               "ubuntu@{ip}:{dst} ".format(ip=ip, dst=dst,
-                                           identity=utils.ssh_privkey(),
-                                           filepath=filepath))
+
+        cmd = ("lxc file push {src} {name}/{dst} ".format(dst=dst,
+                                                          name=name,
+                                                          src=src))
         ret = utils.get_command_output(cmd)
         if ret['status'] > 0:
             raise Exception("There was a problem copying ({0}) to the "
-                            "container ({1}:{2}): {3}".format(
-                                filepath, name, ip, ret['output']))
+                            "container ({1}): out:'{2}'\nerr:{3}"
+                            "\ncmd:{4}".format(src, name,
+                                               ret['output'],
+                                               ret['err'],
+                                               cmd))
 
     @classmethod
     def create(cls, name, userdata):
-        """ creates a container from ubuntu-cloud template
+        """ creates a container from an image with the alias 'ubuntu'
         """
-        # NOTE: the -F template arg is a workaround. it flushes the lxc
-        # ubuntu template's image cache and forces a re-download. It
-        # should be removed after https://github.com/lxc/lxc/issues/381 is
-        # resolved.
-        flushflag = "-F"
-        if os.getenv("USE_LXC_IMAGE_CACHE"):
-            log.debug("USE_LXC_IMAGE_CACHE set, so not flushing in lxc-create")
-            flushflag = ""
-        out = utils.get_command_output(
-            'sudo -E lxc-create -t ubuntu-cloud '
-            '-n {name} -- {flushflag} '
-            '-u {userdatafilename}'.format(name=name,
-                                           flushflag=flushflag,
-                                           userdatafilename=userdata))
+        out = utils.get_command_output('lxc image list | grep ubuntu')
+        if len(out['output']) == 0:
+            utils.get_command_output(
+                'lxd-images import ubuntu -- alias ubuntu')
+            raise Exception("No 'ubuntu' image found")
+
+        imgname = os.getenv("LXD_IMAGE_NAME", "ubuntu")
+        out = utils.get_command_output('lxc init {} {}'.format(imgname,
+                                                               name))
         if out['status'] > 0:
             raise Exception("Unable to create container: "
-                            "{0}".format(out['output']))
-        return out['status']
+                            + out['output'])
+
+        out = utils.get_command_output('lxc config show ' + name)
+        if out['status'] > 0:
+            raise Exception("Unable to get container config: "
+                            + out['output'])
+
+        cfgyaml = yaml.load(out['output'])
+        with open(userdata, 'r') as uf:
+            if 'user.user_data' in cfgyaml['config']:
+                raise Exception("Container config already has userdata")
+
+            cfgyaml['config']['user.user-data'] = "".join(uf.readlines())
+            # cfgyaml['config']['security.privileged'] = True
+
+        with tempfile.NamedTemporaryFile(delete=False) as cfgtmp:
+            cfgtmp.write(yaml.dump(cfgyaml).encode())
+            cfgtmp.flush()
+            cmd = 'cat {} | lxc config edit {}'.format(cfgtmp.name, name)
+            log.debug("cmd is '{}'".format(cmd))
+            out = utils.get_command_output(cmd)
+            if out['status'] > 0:
+                raise Exception("Unable to set userdata config: "
+                                + out['output'] + "ERR" + out['err'])
+
+        return 0
 
     @classmethod
-    def start(cls, name, lxc_logfile):
-        """ starts lxc container
+    def add_bind_mounts(cls, name, mounts):
+        return ["lxc.mount.entry = {} {} "
+                "none bind,create={}".format(src, dest, ty)
+                for src, dest, ty in mounts]
 
+    @classmethod
+    def add_config_entries(cls, name, configlines):
+        raw_lxc_config = "\n".join(configlines)
+        out = utils.get_command_output('lxc config set {} raw.lxc '
+                                       '"{}"'.format(name, raw_lxc_config))
+        if out['status'] > 0:
+            raise Exception("couldn't set container config")
+
+    @classmethod
+    def start(cls, name):
+        """ starts lxc container
         :param str name: name of container
         """
-        out = utils.get_command_output(
-            'sudo lxc-start -n {0} -d -o {1}'.format(name,
-                                                     lxc_logfile))
+        out = utils.get_command_output('lxc start ' + name)
 
         if out['status'] > 0:
             raise Exception("Unable to start container: "
-                            "{0}".format(out['output']))
+                            "out:{}\nerr{}".format(out['output'],
+                                                   out['err']))
         return out['status']
 
     @classmethod
     def stop(cls, name):
         """ stops lxc container
-
         :param str name: name of container
         """
-        out = utils.get_command_output(
-            'sudo lxc-stop -n {0}'.format(name))
+        out = utils.get_command_output('lxc stop ' + name)
 
         if out['status'] > 0:
             raise Exception("Unable to stop container: "
-                            "{0}".format(out['output']))
+                            "{}".format(out['output']))
 
         return out['status']
 
     @classmethod
     def destroy(cls, name):
         """ destroys lxc container
-
         :param str name: name of container
         """
-        out = utils.get_command_output(
-            'sudo lxc-destroy -n {0}'.format(name))
+        out = utils.get_command_output('lxc delete ' + name)
 
         if out['status'] > 0:
-            raise Exception("Unable to destroy container: "
+            raise Exception("Unable to delete container: "
                             "{0}".format(out['output']))
 
         return out['status']
 
     @classmethod
     def wait_checked(cls, name, check_logfile, interval=20):
-        """waits for container to be in RUNNING state, checking
-        'check_logfile' every 'interval' seconds for error messages.
-
-        Intended to be used with container_start, which uses 'lxc-start
-        -d', which returns 0 immediately and does not detect errors.
-
+        """waits for container to be in RUNNING state.
+        Ignores check_logfile.
         returns when the container 'name' is in RUNNING state.
         raises an exception if errors are detected.
         """
         while True:
-            out = utils.get_command_output('sudo lxc-wait -n {} -s RUNNING '
-                                           '-t {}'.format(name, interval))
-            if out['status'] == 0:
+            cmd = 'lxc info {} | grep Status'.format(name)
+            out = utils.get_command_output(cmd)
+            if out['status'] != 0:
+                raise Exception("Error getting container info {}".format(out))
+            outstr = out['output'].strip()
+            if outstr == "Status: Running":
                 return
-            log.debug("{} not RUNNING after {} seconds, "
-                      "checking '{}' for errors".format(name, interval,
-                                                        check_logfile))
-            grepout = utils.get_command_output(
-                'grep -q ERROR {}'.format(check_logfile))
-            if grepout['status'] == 0:
-                raise Exception("Error detected starting container. See {} "
-                                "for details.".format(check_logfile))
-
-    @classmethod
-    def wait(cls, name):
-        """ waits for the container to be in a RUNNING state
-
-        :param str name: name of container
-        """
-        out = utils.get_command_output(
-            'sudo lxc-wait -n {0} -s RUNNING'.format(name))
-        return out['status']
+            time.sleep(4)

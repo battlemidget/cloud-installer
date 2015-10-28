@@ -1,7 +1,4 @@
-#
-# log.py - Logger
-#
-# Copyright 2014 Canonical, Ltd.
+# Copyright 2014, 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -86,12 +83,11 @@ def setup_logger(name=__name__, headless=False):
         "%(filename)s:%(lineno)d] %(message)s",
         datefmt='%m-%d %H:%M:%S'))
 
-    if headless:
-        consolelog = logging.StreamHandler()
-        consolelog.setLevel(logging.INFO)
-        consolelog.setFormatter(logging.Formatter(
-            '[%(levelname)-4s: %(asctime)s] %(message)s',
-            datefmt='%m-%d %H:%M:%S'))
+    consolelog = logging.StreamHandler()
+    consolelog.setLevel(logging.INFO)
+    consolelog.setFormatter(logging.Formatter(
+        '%(asctime)s: %(message)s',
+        datefmt='%b %d %H:%M:%S'))
 
     logger = logging.getLogger('')
     logger.setLevel(env)
@@ -100,10 +96,8 @@ def setup_logger(name=__name__, headless=False):
     if no_filter is None:
         f = logging.Filter(name='cloudinstall')
         commandslog.addFilter(f)
-        if headless:
-            consolelog.addFilter(f)
+        consolelog.addFilter(f)
     logger.addHandler(commandslog)
-    if headless:
-        logger.addHandler(consolelog)
+    logger.addHandler(consolelog)
 
     return logger

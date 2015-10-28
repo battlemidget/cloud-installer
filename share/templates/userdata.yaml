@@ -19,15 +19,6 @@
 
 #cloud-config
 
-write_files:
-  - content: |
-      #!/bin/sh
-      mkdir -p /dev/net || true
-      mknod /dev/kvm c 10 232
-      mknod /dev/net/tun c 10 200
-      exit 0
-    path: /etc/rc.local
-    permissions: '0755'
 packages:
   - software-properties-common
 {%- if next_charms %}
@@ -41,6 +32,7 @@ packages:
 groups:
   - libvirtd: [ubuntu]
   - sudo: [ubuntu]
+  - lxd: [ubuntu]
 {%- if apt_proxy %}
 apt_proxy: {{ apt_proxy }}
 {%- endif %}
@@ -92,7 +84,6 @@ resize_rootfs: False
 
 # Make sure we load our modules on first creation
 runcmd:
-  - [ sh, /etc/rc.local ]
   - echo "export PATH=$PATH:/usr/sbin" >> /home/ubuntu/.bashrc
 {%- if http_proxy %}
   - echo "export http_proxy={{ http_proxy }}" >> /home/ubuntu/.bashrc

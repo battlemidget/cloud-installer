@@ -22,15 +22,10 @@ import argparse
 import sys
 import os
 import logging
-from functools import partial
 from cloudinstall.log import setup_logger
 import cloudinstall.utils as utils
-from cloudinstall.gui import PegasusGUI, InstallHeader
-from cloudinstall.consoleui import ConsoleUI
-from cloudinstall.controllers.installbase import InstallController
+from cloudinstall.controllers.install import SingleInstall
 from cloudinstall.config import Config
-from cloudinstall.ev import EventLoop
-from cloudinstall.alarms import AlarmMonitor
 from cloudinstall import __version__ as version
 
 CFG_FILE = os.path.join(utils.install_home(),
@@ -200,9 +195,9 @@ if __name__ == '__main__':
     logger.info('Starting OpenStack Installer v{}'.format(version))
     logger.info('Start command: {}'.format(sys.argv))
 
-    if os.geteuid() != 0:
-        sys.exit(
-            "Installing a cloud requires root privileges. Rerun with sudo")
+    # if os.geteuid() != 0:
+    #     sys.exit(
+    #         "Installing a cloud requires root privileges. Rerun with sudo")
 
     if not os.path.exists(cfg.cfg_path):
         os.makedirs(cfg.cfg_path)
@@ -235,11 +230,6 @@ if __name__ == '__main__':
         print(msg)
         sys.exit(1)
 
-    if cfg.getopt('headless'):
-        ui = ConsoleUI()
-    else:
-        ui = PegasusGUI(header=InstallHeader())
-
     # Set proxy
     if cfg.getopt('http_proxy'):
         os.environ['HTTP_PROXY'] = cfg.getopt('http_proxy')
@@ -248,18 +238,7 @@ if __name__ == '__main__':
         os.environ['HTTPS_PROXY'] = cfg.getopt('https_proxy')
         os.environ['https_proxy'] = cfg.getopt('https_proxy')
 
-    # Choose event loop
-    ev = EventLoop(ui, cfg, logger)
-
-    # Bind event loops alarm tracking
-    AlarmMonitor.loop = ev
-
-    try:
-        install = InstallController(
-            ui=ui, config=cfg, loop=ev)
-    except:
-        print("Unable to start install controller")
-        sys.exit(1)
+    install = SingleInstall(cfg)
 
     logger.info('Running {} release'.format(
                 cfg.getopt('openstack_release').capitalize()))
@@ -267,13 +246,6 @@ if __name__ == '__main__':
     utils.spew(os.path.join(cfg.cfg_path, 'openstack_release'),
                cfg.getopt('openstack_release'), owner=utils.install_user())
 
-    try:
-        import atexit
-        atexit.register(partial(utils.cleanup, cfg))
-        install.start()
-    except:
-        if opts.debug and not cfg.getopt('headless'):
-            import pdb
-            pdb.post_mortem()
-    finally:
-        sys.exit(ev.error_code)
+    # import atexit
+    # atexit.register(partial(utils.cleanup, cfg))
+    install.do_install()
