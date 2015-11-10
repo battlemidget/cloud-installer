@@ -15,3 +15,4 @@
 
 
 from .machine import MachineWidget  # NOQA
+from .statusbar import StatusBarWidget  # NOQA

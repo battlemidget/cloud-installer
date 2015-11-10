@@ -24,6 +24,8 @@ log = logging.getLogger('cloudinstall.ui.widgets.machine')
 
 class MachineWidget(WidgetWrap):
     def __init__(self, unit, charm_class, hwinfo):
+        self.unit = unit
+        self.charm_class = charm_class
         self.hwinfo = hwinfo
         self.container = Text(self.hwinfo['container'])
         self.machine = Text(self.hwinfo['machine'])
@@ -31,7 +33,7 @@ class MachineWidget(WidgetWrap):
         self.cpu_cores = Text(self.hwinfo['cpu_cores'])
         self.mem = Text(self.hwinfo['mem'])
         self.storage = Text(self.hwinfo['storage'])
-        self.display_name = Text(charm_class.display_name)
-        self.agent_state = Text(unit.agent_state)
-        self.public_address = Text(unit.public_address)
-        self.icon = None
+        self.display_name = Text(self.charm_class.display_name)
+        self.agent_state = Text(self.unit.agent_state)
+        self.public_address = Text(self.unit.public_address)
+        self.icon = Text("")

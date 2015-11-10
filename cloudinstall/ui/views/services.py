@@ -16,7 +16,6 @@
 from __future__ import unicode_literals
 from operator import attrgetter
 import logging
-import random
 from urwid import (Text, Columns, WidgetWrap,
                    Pile, ListBox, Divider)
 from cloudinstall.status import get_sync_status
@@ -86,7 +85,7 @@ class ServicesView(WidgetWrap):
 
     def __init__(self, nodes, juju_state, maas_state, config):
         self.columns = ServiceColumn()
-        self.deployed = []
+        self.deployed = {}
         self.nodes = [] if nodes is None else nodes
         self.juju_state = juju_state
         self.maas_state = maas_state
@@ -98,80 +97,58 @@ class ServicesView(WidgetWrap):
             self.columns.add(key, label)
         super().__init__(ListBox([self.columns.render()]))
 
+        self.refresh_nodes(self.nodes)
+
     def refresh_nodes(self, nodes):
+        """ Adds services to the view if they don't already exist
+        """
         for node in nodes:
             charm_class, service = node
             if len(service.units) > 0:
                 for u in sorted(service.units, key=attrgetter('unit_name')):
-                    self.update_column(u, charm_class)
+                    # Refresh any state changes
+                    try:
+                        machine_w = self.deployed[u.unit_name]
+                    except:
+                        hwinfo = self._get_hardware_info(u)
+                        self.deployed[u.unit_name] = MachineWidget(u,
+                                                                   charm_class,
+                                                                   hwinfo)
+                        machine_w = self.deployed[u.unit_name]
+                        for k, label in self.view_columns:
+                            self.columns.add_to(k, getattr(machine_w, k))
 
-    def update(self, nodes):
+                    self.update_ui_state(charm_class, u,
+                                         machine_w)
+
+    def update_ui_state(self, charm_class, unit, machine_w):
         """ Updates individual machine information
         """
-        for node in nodes:
-            charm_class, service = node
-            if len(service.units) > 0:
-                for u in sorted(service.units, key=attrgetter('unit_name')):
-                    # These are really the only dynamic properties
-                    self.machine_w.public_address.set_text(u.public_address)
-                    self.machine_w.agent_state.set_text(u.agent_state)
+        machine_w.public_address.set_text(unit.public_address)
+        machine_w.agent_state.set_text(unit.agent_state)
 
-    def _generate_status(self, unit, charm_class):
-        result = {
-            "icon": None,
-            "error": None
-        }
-        # unit.agent_state may be "pending" despite errors elsewhere,
-        # so we check for error_info first.
-        # if the agent_state is "error", _detect_errors returns that.
-        error_info = self._detect_errors(unit, charm_class)
-
-        if error_info:
-            result['icon'] = Color.error_icon(
-                Text("\N{TETRAGRAM FOR FAILURE}"))
-            if unit.agent_state != "error":
-                result['error'] = unit.agent_state
-            return result
-        elif unit.agent_state == "pending":
-            result['icon'] = Color.pending_icon(Text("\N{CIRCLED BULLET}"))
-        elif unit.agent_state == "installed":
-            result['icon'] = Color.pending_icon(
-                Text("\N{HOURGLASS}"))
-        elif unit.agent_state == "started":
-            result['icon'] = Color.success_icon(Text("\u2713"))
-        elif unit.agent_state == "stopped":
-            result['icon'] = Color.error_icon(Text("\N{BLACK FLAG}"))
-        elif unit.agent_state == "down":
-            result['icon'] = Color.error_icon(
-                Text("\N{DOWNWARDS BLACK ARROW}"))
-        else:
-            # shouldn't get here
-            result['icon'] = "?"
-
-        return result
-
-    def update_column(self, unit, charm_class):
-        """ Update rendering of columns with service information
-        """
-        hwinfo = self._get_hardware_info(unit)
-        self.machine_w = MachineWidget(unit, charm_class, hwinfo)
-
-        status = self._generate_status(unit, charm_class)
-        self.machine_w.icon = status['icon']
-
+        # Special additional status text for these services
         if 'glance-simplestreams-sync' in unit.unit_name:
             status_oneline = get_sync_status().replace("\n", " - ")
-            self.machine_w.display_name.set_text(
-                "{} ({})".format(self.machine_w.display_name.get_text()[0],
+            machine_w.display_name.set_text(
+                "{} ({})".format(charm_class.display_name,
                                  status_oneline))
 
-        if status['error']:
-            self.machine_w.public_address.set_text(status['error'])
+            if unit.is_horizon and unit.agent_state == "started":
+                self.machine_w.display_name.set_text(
+                    "{} - Login: https://{}/horizon "
+                    "l:{} p:{}".format(
+                        charm_class.display_name,
+                        unit.public_address,
+                        'ubuntu',
+                        self.config.getopt('openstack_password')))
 
-        if unit.unit_name not in self.deployed:
-            for k, label in self.view_columns:
-                self.columns.add_to(k, getattr(self.machine_w, k))
-            self.deployed.append(unit.unit_name)
+            if unit.is_jujugui and unit.agent_state == "started":
+                self.machine_w.display_name.set_text(
+                    "{} - Login: https://{}/ "
+                    "l:{} p:{}".format(
+                        charm_class.display_name,
+                        unit.public_address))
 
     def _get_hardware_info(self, unit):
         """Get hardware info from juju or maas
@@ -268,14 +245,3 @@ class ServicesView(WidgetWrap):
                 err_info += unit_machine.agent_state_info
             return err_info
         return None
-
-    def get_log_text(self, unit_name):
-        name = '-'.join(unit_name.split('/'))
-        cmd = ("sudo grep {unit} /var/log/juju-ubuntu-local/all-machines.log "
-               " | tail -n 2")
-        cmd = cmd.format(unit=name)
-        out = utils.get_command_output(cmd)
-        if out['status'] == 0 and len(out['output']) > 0:
-            return out['output']
-        else:
-            return "No log matches for {}".format(name)

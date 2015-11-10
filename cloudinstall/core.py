@@ -124,14 +124,6 @@ class Controller:
 
         self.nodes = list(zip(charm_classes, deployed_services))
 
-        for n in deployed_services:
-            for u in n.units:
-                if u.is_horizon and u.agent_state == "started":
-                    self.ui.set_dashboard_url(
-                        u.public_address, 'ubuntu',
-                        self.config.getopt('openstack_password'))
-                if u.is_jujugui and u.agent_state == "started":
-                    self.ui.set_jujugui_url(u.public_address)
         if len(self.nodes) == 0:
             return
         else:
@@ -141,7 +133,6 @@ class Controller:
                     self.maas_state, self.config)
             else:
                 self.ui.services_view.refresh_nodes(self.nodes)
-                self.ui.services_view.update(self.nodes)
 
     def authenticate_juju(self):
         if not len(self.config.juju_env['state-servers']) > 0:

@@ -21,7 +21,7 @@ import logging
 import random
 
 import urwid
-from urwid import (Text, Columns, Overlay,
+from urwid import (Text, Columns,
                    Filler, Frame, WidgetWrap, Button,
                    Pile, Divider)
 
@@ -32,8 +32,8 @@ from cloudinstall.ui import (ScrollableWidgetWrap,
                              SelectorWithDescription,
                              PasswordInput,
                              MaasServerInput,
-                             LandscapeInput,
-                             InfoDialog)
+                             LandscapeInput)
+from cloudinstall.ui.widgets import StatusBarWidget
 from cloudinstall.alarms import AlarmMonitor
 from cloudinstall.ui.views import (ErrorView,
                                    ServicesView,
@@ -173,77 +173,6 @@ class InstallHeader(WidgetWrap):
             self.TITLE_TEXT, release))
 
 
-class StatusBar(WidgetWrap):
-
-    """Displays text."""
-
-    INFO = "[INFO]"
-    ERROR = "[ERROR]"
-    ARROW = " \u21e8 "
-
-    def __init__(self, text=''):
-        self._pending_deploys = Text('')
-        self._status_line = Text(text, align="center")
-        self._horizon_url = Text('')
-        self._jujugui_url = Text('')
-        self._openstack_rel = Text('', align="right")
-        self._status_extra = self._build_status_extra()
-        status = Pile([self._pending_deploys,
-                       self._status_extra])
-        super().__init__(status)
-
-    def _build_status_extra(self):
-        return Color.frame_footer(
-            Pile([
-                self._horizon_url,
-                self._jujugui_url,
-                self._openstack_rel,
-                self._status_line
-            ]))
-
-    def set_dashboard_url(self, ip=None, user=None, password=None):
-        """ sets horizon dashboard url """
-        text = "Horizon: "
-        if not ip:
-            text += "(pending)"
-        else:
-            text += "https://{}/horizon l:{} p:{}".format(
-                ip, user, password)
-        return self._horizon_url.set_text(text)
-
-    def set_jujugui_url(self, ip=None):
-        """ sets juju gui url """
-        text = "{0:<21}".format("JujuGUI: ")
-        if not ip:
-            text += "(pending)"
-        else:
-            text += "https://{}/".format(ip)
-        return self._jujugui_url.set_text(text)
-
-    def message(self, text):
-        """Write `text` on the footer."""
-        self._status_line.set_text(text)
-
-    def error_message(self, text):
-        self.message([('status_error', self.ERROR),
-                      self.ARROW + text])
-
-    def info_message(self, text):
-        self.message([('status_info', self.INFO),
-                      self.ARROW + text])
-
-    def set_pending_deploys(self, pending_deploys):
-        if len(pending_deploys) > 0:
-            msg = "Pending deploys: " + ", ".join(pending_deploys)
-            self._pending_deploys.set_text(msg)
-        else:
-            self._pending_deploys.set_text('')
-
-    def clear(self):
-        """Clear the text."""
-        self._w.set_text('')
-
-
 class StepInfo(WidgetWrap):
 
     def __init__(self, msg=None):
@@ -297,7 +226,7 @@ class PegasusGUI(WidgetWrap):
         utils.register_async_exception_callback(cb)
         self.header = header if header else Header()
         self.body = body if body else Banner()
-        self.footer = footer if footer else StatusBar('')
+        self.footer = footer if footer else StatusBarWidget('')
 
         self.frame = Frame(self.body,
                            header=self.header,
@@ -313,40 +242,6 @@ class PegasusGUI(WidgetWrap):
     def keypress(self, size, key):
         key = self.key_conversion_map.get(key, key)
         return super().keypress(size, key)
-
-    def _build_overlay_widget(self,
-                              top_w,
-                              align,
-                              width,
-                              valign,
-                              height,
-                              min_width,
-                              min_height):
-        return Overlay(top_w=Filler(top_w),
-                       bottom_w=self.frame,
-                       align=align,
-                       width=width,
-                       valign=valign,
-                       height=height,
-                       min_width=width,
-                       min_height=height)
-
-    def show_widget_on_top(self,
-                           widget,
-                           width,
-                           height,
-                           align='center',
-                           valign='middle',
-                           min_height=0,
-                           min_width=0):
-        """Show `widget` on top of :attr:`frame`."""
-        self._w = self._build_overlay_widget(top_w=widget,
-                                             align=align,
-                                             width=width,
-                                             valign=valign,
-                                             height=height,
-                                             min_width=min_width,
-                                             min_height=min_height)
 
     def focus_next(self):
         if hasattr(self.frame.body, 'scroll_down'):
@@ -364,10 +259,6 @@ class PegasusGUI(WidgetWrap):
         if hasattr(self.frame.body, 'scroll_bottom'):
             self.frame.body.scroll_bottom()
 
-    def hide_widget_on_top(self):
-        """Hide the topmost widget (if any)."""
-        self._w = self.frame
-
     def show_help_info(self):
         self.controller = self.frame.body
         AlarmMonitor.remove_all()
@@ -378,10 +269,6 @@ class PegasusGUI(WidgetWrap):
 
     def show_selector_with_desc(self, title, opts, cb):
         self.frame.body = SelectorWithDescription(title, opts, cb)
-
-    def show_fatal_error_message(self, msg, cb):
-        w = InfoDialog(msg, cb)
-        self.show_widget_on_top(w, width=50, height=20)
 
     def show_password_input(self, title, cb):
         self.frame.body = PasswordInput(title, cb)
@@ -411,12 +298,6 @@ class PegasusGUI(WidgetWrap):
     def status_info_message(self, message):
         self.frame.footer.info_message(
             "{}\N{HORIZONTAL ELLIPSIS}".format(message))
-
-    def set_dashboard_url(self, ip, user, password):
-        self.frame.footer.set_dashboard_url(ip, user, password)
-
-    def set_jujugui_url(self, ip):
-        self.frame.footer.set_jujugui_url(ip)
 
     def set_openstack_rel(self, release):
         self.frame.header.set_openstack_rel(release)
