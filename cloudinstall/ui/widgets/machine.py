@@ -34,4 +34,4 @@ class MachineWidget(WidgetWrap):
         self.display_name = Text(charm_class.display_name)
         self.agent_state = Text(unit.agent_state)
         self.public_address = Text(unit.public_address)
-        self.icon = Text()
+        self.icon = None

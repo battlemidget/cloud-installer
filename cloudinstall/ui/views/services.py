@@ -86,6 +86,7 @@ class ServicesView(WidgetWrap):
 
     def __init__(self, nodes, juju_state, maas_state, config):
         self.columns = ServiceColumn()
+        self.deployed = []
         self.nodes = [] if nodes is None else nodes
         self.juju_state = juju_state
         self.maas_state = maas_state
@@ -132,11 +133,7 @@ class ServicesView(WidgetWrap):
                 result['error'] = unit.agent_state
             return result
         elif unit.agent_state == "pending":
-            pending_status = [Color.pending_icon(Text("\N{CIRCLED BULLET}")),
-                              Color.pending_icon(
-                                  Text("\N{CIRCLED WHITE BULLET}")),
-                              Color.pending_icon_on(Text("\N{FISHEYE}"))]
-            result['icon'] = random.choice(pending_status)
+            result['icon'] = Color.pending_icon(Text("\N{CIRCLED BULLET}"))
         elif unit.agent_state == "installed":
             result['icon'] = Color.pending_icon(
                 Text("\N{HOURGLASS}"))
@@ -160,7 +157,7 @@ class ServicesView(WidgetWrap):
         self.machine_w = MachineWidget(unit, charm_class, hwinfo)
 
         status = self._generate_status(unit, charm_class)
-        self.machine_w.icon.set_text(status['icon'])
+        self.machine_w.icon = status['icon']
 
         if 'glance-simplestreams-sync' in unit.unit_name:
             status_oneline = get_sync_status().replace("\n", " - ")
@@ -171,8 +168,10 @@ class ServicesView(WidgetWrap):
         if status['error']:
             self.machine_w.public_address.set_text(status['error'])
 
-        for k, label in self.view_columns:
-            self.columns.add_to(k, getattr(self.machine_w, k))
+        if unit.unit_name not in self.deployed:
+            for k, label in self.view_columns:
+                self.columns.add_to(k, getattr(self.machine_w, k))
+            self.deployed.append(unit.unit_name)
 
     def _get_hardware_info(self, unit):
         """Get hardware info from juju or maas
