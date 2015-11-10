@@ -20,6 +20,7 @@ import logging
 import os
 import json
 import time
+import platform
 import shutil
 from subprocess import call, check_call, check_output, STDOUT
 
@@ -229,6 +230,11 @@ class SingleInstall:
         log.debug("Container started, cloud-init done.")
 
         lxc_network = self.write_lxc_net_config()
+        # for wily+ hosts and containers, restart the preexisting
+        # lxc-net to pick up our config:
+        if platform.linux_distribution()[2][0] >= 'w':
+            Container.run(self.container_name,
+                          "systemctl restart lxc-net")
         self.add_static_route(lxc_network)
 
         self.tasker.start_task("Installing Dependencies",
@@ -486,6 +492,14 @@ class SingleInstall:
                       "{0} juju --debug bootstrap".format(
                           self.config.juju_home(use_expansion=True)),
                       use_ssh=True, output_cb=self.set_progress_output)
+
+        trace = os.getenv("TRACE_JUJU", None)
+        if trace:
+            Container.run(self.container_name,
+                          "{} juju set-env "
+                          "logging-config=\"<root>=TRACE\"".format(
+                              self.config.juju_home(use_expansion=True)),
+                          use_ssh=True, output_cb=self.set_progress_output)
         Container.run(
             self.container_name,
             "{0} juju status".format(

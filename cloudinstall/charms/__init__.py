@@ -129,11 +129,11 @@ class CharmBase:
 
     def _openstack_env(self, user, password, tenant, auth_url):
         """ setup openstack environment vars """
-        return """export OS_USERNAME={user}
-export OS_PASSWORD={password}
-export OS_TENANT_NAME={tenant}
-export OS_AUTH_URL=http://{auth_url}:5000/v2.0
-export OS_REGION_NAME=RegionOne
+        return """export OS_USERNAME=\"{user}\"
+export OS_PASSWORD=\"{password}\"
+export OS_TENANT_NAME=\"{tenant}\"
+export OS_AUTH_URL=\"http://{auth_url}:5000/v2.0\"
+export OS_REGION_NAME=\"RegionOne\"
 """.format(
             user=user, password=password,
             tenant=tenant, auth_url=auth_url)
@@ -437,6 +437,8 @@ class CharmQueue:
         while len(valid_relations) != len(completed_relations):
             for relation_a, relation_b in valid_relations:
                 try:
+                    log.debug("Calling juju.add_relation({}, {})".format(
+                        relation_a, relation_b))
                     self.juju.add_relation(relation_a,
                                            relation_b)
                     completed_relations.append((relation_a,
@@ -449,6 +451,7 @@ class CharmQueue:
                     log.exception(msg)
                     self.ui.status_info_message(msg)
                     raise e
+        self.config.setopt('relations_complete', True)
 
     def _charm_classes(self):
         """ Returns instances of deployed charms """
@@ -483,4 +486,4 @@ class CharmQueue:
                 log.exception(msg)
                 self.ui.status_error_message(msg)
             time.sleep(10)
-        self.config.setopt('deploy_complete', True)
+        self.config.setopt('postproc_complete', True)

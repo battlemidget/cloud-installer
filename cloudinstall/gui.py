@@ -46,8 +46,6 @@ from cloudinstall.placement.ui.add_services_dialog import AddServicesDialog
 log = logging.getLogger('cloudinstall.gui')
 sys.excepthook = utils.global_exchandler
 
-TITLE_TEXT = "Ubuntu OpenStack Installer - Dashboard"
-
 
 class Banner(ScrollableWidgetWrap):
 
@@ -129,12 +127,17 @@ class NodeInstallWaitMode(WidgetWrap):
 
 class Header(WidgetWrap):
 
+    TITLE_TEXT = "Ubuntu OpenStack Installer - Dashboard"
+
     def __init__(self):
-        self.title_widget = Color.frame_header(
-            Padding.center_96(Text(TITLE_TEXT)))
-        self.pile = Pile([self.title_widget, Text("")])
+        self.text = Text(self.TITLE_TEXT)
+        self.widget = Color.frame_header(self.text)
+        self.pile = Pile([self.widget, Text("")])
         self.set_show_add_units_hotkey(False)
         super().__init__(self.pile)
+
+    def set_openstack_rel(self, release):
+        self.text.set_text("{} ({})".format(self.TITLE_TEXT, release))
 
     def set_show_add_units_hotkey(self, show):
         self.show_add_units = show
@@ -153,14 +156,21 @@ class Header(WidgetWrap):
 
 class InstallHeader(WidgetWrap):
 
+    TITLE_TEXT = "Ubuntu Openstack Installer - Software Installation"
+
     def __init__(self):
-        w = []
-        w.append(Color.frame_header(
-            Text("Ubuntu Openstack Installer - Software Installation")))
-        w.append(Color.frame_subheader(Text(
-            '(Q)uit', align='center')))
-        w = Pile(w)
-        super().__init__(w)
+        self.text = Text(self.TITLE_TEXT)
+        self.widget = Color.frame_header(self.text)
+        w = [
+            Color.frame_header(self.widget),
+            Color.frame_subheader(Text(
+                '(Q)uit', align='center'))
+        ]
+        super().__init__(Pile(w))
+
+    def set_openstack_rel(self, release):
+        self.text.set_text("{} ({})".format(
+            self.TITLE_TEXT, release))
 
 
 class StatusBar(WidgetWrap):
@@ -190,11 +200,6 @@ class StatusBar(WidgetWrap):
                 self._openstack_rel,
                 self._status_line
             ]))
-
-    def set_openstack_rel(self, text="Icehouse (2014.1.1)"):
-        """ Updates openstack release text
-        """
-        return self._openstack_rel.set_text(text)
 
     def set_dashboard_url(self, ip=None, user=None, password=None):
         """ sets horizon dashboard url """
@@ -413,8 +418,8 @@ class PegasusGUI(WidgetWrap):
     def set_jujugui_url(self, ip):
         self.frame.footer.set_jujugui_url(ip)
 
-    def set_openstack_rel(self, text):
-        self.frame.footer.set_openstack_rel(text)
+    def set_openstack_rel(self, release):
+        self.frame.header.set_openstack_rel(release)
 
     def clear_status(self):
         self.frame.footer = None
@@ -425,6 +430,17 @@ class PegasusGUI(WidgetWrap):
                                           config)
         self.frame.body = self.services_view
         self.header.set_show_add_units_hotkey(True)
+        dc = config.getopt('deploy_complete')
+        dcstr = "complete" if dc else "pending"
+        rc = config.getopt('relations_complete')
+        rcstr = "complete" if rc else "pending"
+        ppc = config.getopt('postproc_complete')
+        ppcstr = "complete" if ppc else "pending"
+        self.status_info_message("Status: Deployments {}, "
+                                 "Relations {}, "
+                                 "Post-processing {} ".format(dcstr,
+                                                              rcstr,
+                                                              ppcstr))
 
     def render_node_install_wait(self, message=None, **kwargs):
         self.frame.body = NodeInstallWaitMode(message, **kwargs)

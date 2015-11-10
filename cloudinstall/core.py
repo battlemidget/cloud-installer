@@ -21,6 +21,7 @@ from os import path, getenv
 
 from operator import attrgetter
 
+from cloudinstall.config import OPENSTACK_RELEASE_LABELS
 from cloudinstall import utils
 from cloudinstall.alarms import AlarmMonitor
 from cloudinstall.state import ControllerState
@@ -169,8 +170,13 @@ class Controller:
             self.maas_state, self.config)
 
         if path.exists(self.config.placements_filename):
-            with open(self.config.placements_filename, 'r') as pf:
-                self.placement_controller.load(pf)
+            try:
+                with open(self.config.placements_filename, 'r') as pf:
+                    self.placement_controller.load(pf)
+            except Exception:
+                log.exception("Exception loading placement")
+                raise Exception("Could not load "
+                                "{}.".format(self.config.placements_filename))
             self.ui.status_info_message("Loaded placements from file")
             log.info("Loaded placements from "
                      "'{}'".format(self.config.placements_filename))
@@ -263,7 +269,9 @@ class Controller:
             raise Exception("Expected some juju machines started.")
 
         self.config.setopt('current_state', ControllerState.SERVICES.value)
-        if not self.config.getopt("deploy_complete"):
+        ppc = self.config.getopt("postproc_complete")
+        rc = self.config.getopt("relations_complete")
+        if not ppc or not rc:
             if self.config.is_single():
                 controller_machine = self.juju_m_idmap['controller']
                 self.configure_lxc_network(controller_machine)
@@ -583,6 +591,7 @@ class Controller:
                 ", ".join(["{}:{}".format(a, b) for a, b in not_ready])))
             time.sleep(3)
 
+        self.config.setopt('deploy_complete', True)
         self.ui.status_info_message(
             "Processing relations and finalizing services")
 
@@ -605,7 +614,7 @@ class Controller:
         # Exit cleanly if we've finished all deploys, relations,
         # post processing, and running in headless mode.
         if self.config.getopt('headless'):
-            while not self.config.getopt('deploy_complete'):
+            while not self.config.getopt('postproc_complete'):
                 self.ui.status_info_message(
                     "Waiting for services to be started.")
                 # FIXME: Is this needed?
@@ -615,9 +624,9 @@ class Controller:
             self.loop.exit(0)
 
         self.ui.status_info_message(
-            "Services deployed, relationships may still be"
-            " pending. Please wait for all services to be checked before"
-            " deploying compute nodes")
+            "Services deployed, relationships still pending."
+            " Please wait for all relations to be set before"
+            " deploying additional services.")
         self.ui.render_services_view(self.nodes, self.juju_state,
                                      self.maas_state, self.config)
         self.loop.redraw_screen()
@@ -654,9 +663,13 @@ class Controller:
             self.initialize()
         else:
             self.ui.status_info_message("Welcome")
+            rel = self.config.getopt('openstack_release')
+            label = OPENSTACK_RELEASE_LABELS[rel]
+            self.ui.set_openstack_rel(label)
             self.initialize()
             self.loop.register_callback('refresh_display', self.update)
             AlarmMonitor.add_alarm(self.loop.set_alarm_in(0, self.update),
                                    "controller-start")
+            self.config.setopt("gui_started", True)
             self.loop.run()
             self.loop.close()

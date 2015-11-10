@@ -56,7 +56,7 @@ class Container:
             raise NoContainerIPException()
 
     @classmethod
-    def run(cls, name, cmd, use_ssh=False, output_cb=None):
+    def run(cls, name, cmd, use_ssh=False, use_sudo=False, output_cb=None):
         """ run command in container
 
         :param str name: name of container
@@ -78,9 +78,13 @@ class Container:
         else:
             ip = "-"
             quoted_cmd = cmd
-            wrapped_cmd = ("lxc-attach -n {container_name} -- "
-                           "{cmd}".format(container_name=name,
-                                          cmd=cmd))
+            wrapped_cmd = []
+            if use_sudo:
+                wrapped_cmd.append("sudo")
+            wrapped_cmd.append("lxc-attach -n {container_name} -- "
+                               "{cmd}".format(container_name=name,
+                                              cmd=cmd))
+            wrapped_cmd = " ".join(wrapped_cmd)
 
         stdoutmaster, stdoutslave = pty.openpty()
         subproc = subprocess.Popen(wrapped_cmd, shell=True,
@@ -133,11 +137,6 @@ class Container:
         if subproc.returncode == 0:
             return decoded_output.strip()
         else:
-            log.debug("Error with command: "
-                      "[Output] '{}' [Error] '{}'".format(
-                          decoded_output.strip(),
-                          errors.strip()))
-
             raise ContainerRunException("Problem running {0} in container "
                                         "{1}:{2}".format(quoted_cmd, name, ip),
                                         subproc.returncode)

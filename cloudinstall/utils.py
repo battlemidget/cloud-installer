@@ -43,6 +43,7 @@ import shutil
 import json
 import yaml
 import requests
+from urllib.parse import urlparse
 
 log = logging.getLogger('cloudinstall.utils')
 
@@ -86,7 +87,7 @@ def cleanup(cfg):
     pid = os.path.join(install_home(), '.cloud-install/openstack.pid')
     if os.path.isfile(pid):
         os.remove(pid)
-    if not cfg.getopt('headless'):
+    if not cfg.getopt('headless') and cfg.getopt('gui_started'):
         log.debug('Attempting to reset the terminal')
         sys.stderr.write("\x1b[2J\x1b[H")
         call(['stty', 'sane'])
@@ -336,8 +337,7 @@ def apt_install(pkgs):
            "-o Dpkg::Options::=--force-confold "
            "install {0}".format(pkgs))
     try:
-        ret = check_call(cmd, stdout=DEVNULL, stderr=DEVNULL, shell=True)
-        log.debug(ret)
+        check_call(cmd, stdout=DEVNULL, stderr=DEVNULL, shell=True)
     except CalledProcessError as e:
         log.error("Problem with package install: {0}".format(e))
         pass
@@ -769,3 +769,24 @@ def download_url(url, output_file):
     else:
         raise UtilsException("Exception downloading {}:{}".format(
             url, res.content))
+
+
+def parse_openstack_creds(creds_file):
+    """ Parses openstack-{admin,ubuntu}-rc for openstack
+    credentials
+    """
+    rc = slurp(creds_file)
+    r = re.compile(
+        "export OS_USERNAME=(?P<username>.*)\n.*"
+        "export OS_PASSWORD=(?P<password>.*)\n.*"
+        "export OS_TENANT_NAME=(?P<tenantName>.*)\n.*"
+        "export OS_AUTH_URL=(?P<authUrl>.*)\n.*"
+        "export OS_REGION_NAME=(?P<region>.*)", re.I | re.M)
+    m = r.match(rc)
+    return {
+        'username': m.group('username'),
+        'password': m.group('password'),
+        'tenant_name': m.group('tenantName'),
+        'auth_url': urlparse(m.group('authUrl')),
+        'region_name': m.group('region')
+    }
