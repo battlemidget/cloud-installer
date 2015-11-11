@@ -13,19 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-""" Async Handler
+""" Core controller handlers
 """
 
-import logging
-from functools import partial
-from concurrent.futures import ThreadPoolExecutor
-log = logging.getLogger("cloudinstall.async")
-pool = ThreadPoolExecutor(1)
 
-
-def nb(func, *args, **kwargs):
-    """ Non-blocking call
-    """
-    log.debug('calling non-blocking func: {} '
-              '(args: {}, kwds: {})'.format(func, args, kwargs))
-    return pool.submit(partial(func, *args, **kwargs))

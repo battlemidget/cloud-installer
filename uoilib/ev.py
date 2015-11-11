@@ -42,8 +42,7 @@ def build_loop(ui, config, **kwargs):
     opts['screen'].reset_default_terminal_palette()
     opts.update(**kwargs)
     evl = urwid.TornadoEventLoop(IOLoop())
-    return urwid.MainLoop(
-        ui, STYLES, event_loop=evl, **opts)
+    return urwid.MainLoop(ui, STYLES, event_loop=evl, **opts)
 
 
 def exit_loop():

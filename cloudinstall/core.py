@@ -24,18 +24,16 @@ from uoilib.async import nb
 from uoilib import utils
 from uoilib.log import pretty_log
 
-from .config import OPENSTACK_RELEASE_LABELS
 from .alarms import AlarmMonitor
 from .state import get_state
-from .maas import (connect_to_maas, FakeMaasState,
-                   MaasMachineStatus)
+from .maas import (
+    connect_to_maas,
+    FakeMaasState
+)
 from .charms import CharmQueue
 from .placement.controller import (PlacementController,
                                    AssignmentType)
 from .juju import (connect_to_juju, FakeJujuState)
-
-from macumba import Jobs as JujuJobs
-
 
 log = logging.getLogger('core')
 
@@ -59,72 +57,6 @@ def authenticate_backends(env):
             env['maas'], env['maas_state'] = connect_to_maas(creds)
 
 
-def all_maas_machines_ready(env, placement_controller):
-    """ Waits for MAAS machines to be in a READY state
-
-    Arguments:
-    env: Dict of config, juju, juju_state, maas, maas_state
-    placement_controller: Placement UI controller
-
-    Returns:
-    True/False based on result of maas machine states
-    """
-    maas_state = env['maas_state']
-    maas_state.invalidate_nodes_cache()
-
-    cons = env['config'].getopt('constraints')
-    needed = set([m.instance_id for m in
-                  placement_controller.machines_pending()])
-    ready = set([m.instance_id for m in
-                 maas_state.machines(MaasMachineStatus.READY,
-                                     constraints=cons)])
-    allocated = set([m.instance_id for m in
-                     maas_state.machines(MaasMachineStatus.ALLOCATED,
-                                         constraints=cons)
-                     ])
-
-    summary = ", ".join(["{} {}".format(v, k) for k, v in
-                         maas_state.machines_summary().items()])
-    log.info("Waiting for {} maas machines to be ready."
-             " Machines Summary: {}".format(len(needed),
-                                            summary))
-    if not needed.issubset(ready.union(allocated)):
-        return False
-    return True
-
-
-def add_machines_to_juju_multi(env, placement_controller):
-    """
-    Adds each of the machines used for the placement to juju, if it
-    isn't already there.
-
-    Arguments:
-    env: Dict of config, juju, juju_state, maas, maas_state
-    placement_controller: Placement UI Controller
-    """
-    juju_state = env['juju_state']
-    juju = env['juju']
-    juju_state.invalidate_status_cache()
-    juju_ids = [jm.instance_id for jm in juju_state.machines()]
-
-    machine_params = []
-    for maas_machine in placement_controller.machines_pending():
-        if maas_machine.instance_id in juju_ids:
-            # ignore machines that are already added to juju
-            continue
-        cd = dict(tags=[maas_machine.system_id])
-        mp = dict(Series="", ContainerType="", ParentId="",
-                  Constraints=cd, Jobs=[JujuJobs.HostUnits])
-        machine_params.append(mp)
-
-    if len(machine_params) > 0:
-        import pprint
-        log.debug("calling add_machines with params:"
-                  " {}".format(pprint.pformat(machine_params)))
-        rv = juju.add_machines(machine_params)
-        log.debug("add_machines returned '{}'".format(rv))
-
-
 def all_juju_machines_started(env, placement_controller):
     """ Returns if all juju machines have an agent_state of started
 
@@ -141,56 +73,6 @@ def all_juju_machines_started(env, placement_controller):
     n_allocated = len([jm for jm in juju_state.machines()
                        if jm.agent_state == 'started'])
     return n_allocated >= n_needed
-
-
-def add_machines_to_juju_single(env, placement_controller):
-    """ Adds machines to Juju in Single mode
-
-    Arguments:
-    env: Dict of config, juju, juju_state, maas, maas_state
-    placement_controller: Placement UI Controller
-
-    Returns:
-    Dict of juju placements
-    """
-    juju_state = env['juju_state']
-    juju = env['juju']
-    juju_state.invalidate_status_cache()
-    juju_m_idmap = {}
-    for jm in juju_state.machines():
-        response = juju.get_annotations(jm.machine_id,
-                                        'machine')
-        ann = response['Annotations']
-        if 'instance_id' in ann:
-            juju_m_idmap[ann['instance_id']] = jm.machine_id
-
-    log.debug("existing juju machines: {}".format(juju_m_idmap))
-
-    def get_created_machine_id(iid, response):
-        d = response['Machines'][0]
-        if d['Error']:
-            raise Exception("Error adding machine '{}':"
-                            "{}".format(iid, response))
-        else:
-            return d['Machine']
-
-    for machine in placement_controller.machines_pending():
-        if machine.instance_id in juju_m_idmap:
-            machine.machine_id = juju_m_idmap[machine.instance_id]
-            log.debug("machine instance_id {} already exists as #{}, "
-                      "skipping".format(machine.instance_id,
-                                        machine.machine_id))
-            continue
-        log.debug("adding machine with "
-                  "constraints={}".format(machine.constraints))
-        rv = juju.add_machine(constraints=machine.constraints)
-        m_id = get_created_machine_id(machine.instance_id, rv)
-        machine.machine_id = m_id
-        rv = juju.set_annotations(m_id, 'machine',
-                                  {'instance_id':
-                                   machine.instance_id})
-        juju_m_idmap[machine.instance_id] = m_id
-    return juju_m_idmap
 
 
 def placement_controller(env):
