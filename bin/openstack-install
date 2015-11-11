@@ -25,8 +25,9 @@ import logging
 from functools import partial
 from cloudinstall.log import setup_logger
 import cloudinstall.utils as utils
-from cloudinstall.gui import PegasusGUI, InstallHeader
-from cloudinstall.consoleui import ConsoleUI
+from cloudinstall.tui import TUI
+from cloudinstall.ui.widgets import InstallHeaderWidget
+from cloudinstall.cui import CUI
 from cloudinstall.controllers.installbase import InstallController
 from cloudinstall.config import Config
 from cloudinstall.ev import EventLoop
@@ -236,9 +237,9 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if cfg.getopt('headless'):
-        ui = ConsoleUI()
+        ui = CUI()
     else:
-        ui = PegasusGUI(header=InstallHeader())
+        ui = TUI(header=InstallHeaderWidget())
 
     # Set proxy
     if cfg.getopt('http_proxy'):

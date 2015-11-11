@@ -38,6 +38,25 @@ OPENSTACK_RELEASE_LABELS = dict(icehouse="Icehouse (2014.1.3)",
                                 liberty="Liberty (2015.2.0)")
 
 
+# Keyboard --------------------------------------------------------------------
+KBD_VIEWS = {
+    'help': ['h', 'H', '?'],
+    'add_service': ['a', 'A'],
+    'status': ['s', 'S']
+}
+
+KBD_MOTION = {
+    'up': ['up', 'k'],
+    'down': ['down', 'j']
+}
+
+KBD_GLOBAL = {
+    'quit': ['q', 'Q'],
+    'refresh': ['r', 'R', 'f5'],
+    'esc': ['esc']
+}
+
+
 class ConfigException(Exception):
     pass
 
@@ -56,6 +75,16 @@ class Config:
             self._config = cfg_obj
         self._cfg_file = cfg_file
         self.save_backups = save_backups
+
+    @property
+    def kbd(self):
+        """ Represents the keyboard shortcuts
+        """
+        return {
+            'views': KBD_VIEWS,
+            'motion': KBD_MOTION,
+            'global': KBD_GLOBAL
+        }
 
     def save(self):
         """ Saves configuration """
@@ -137,9 +166,18 @@ class Config:
             return True
         return False
 
-    def setopt(self, key, val):
-        """ sets config option """
+    def setopt(self, key, val, keep_previous=False):
+        """ sets config option
+
+        Arguments:
+        keep_previous: If set to True will create a backup of `key` in
+        the form of `previous_key`
+        """
         try:
+            if keep_previous:
+                prev_key = "previous_{}".format(key)
+                log.debug("Saving previous key as {}".format(prev_key))
+                self._config[prev_key] = self.getopt(key)
             self._config[key] = val
             self.save()
         except Exception as e:

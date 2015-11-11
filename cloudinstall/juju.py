@@ -19,13 +19,42 @@
 from collections import Counter
 import logging
 import time
+import os.path as path
 
 from cloudinstall.machine import Machine
 from cloudinstall.service import Service
 
+from macumba import JujuClient
 from macumba import RequestTimeout
 
 log = logging.getLogger('cloudinstall.juju')
+
+
+class FakeJujuState:
+
+    @property
+    def services(self):
+        return []
+
+    def machines(self):
+        return []
+
+    def invalidate_status_cache(self):
+        "does nothing"
+
+
+def connect_to_juju(config):
+    if not len(config.juju_env['state-servers']) > 0:
+        state_server = 'localhost:17070'
+    else:
+        state_server = config.juju_env['state-servers'][0]
+    juju = JujuClient(
+        url=path.join('wss://', state_server),
+        password=config.juju_api_password)
+    juju.login()
+    juju_state = JujuState(juju)
+    log.debug('Authenticated against juju api.')
+    return juju, juju_state
 
 
 class JujuState:

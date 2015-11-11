@@ -19,7 +19,6 @@ import logging
 from urwid import (Text, Columns, WidgetWrap,
                    Pile, ListBox, Divider)
 from cloudinstall.status import get_sync_status
-from cloudinstall import utils
 from cloudinstall.ui.widgets import MachineWidget
 from cloudinstall.ui.utils import Color
 

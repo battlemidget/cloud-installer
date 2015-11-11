@@ -28,9 +28,9 @@ from functools import partial
 lib_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, lib_dir)
 
-from cloudinstall.gui import PegasusGUI
+from cloudinstall.tui import TUI
 from cloudinstall.core import Controller
-from cloudinstall.consoleui import ConsoleUI
+from cloudinstall.cui import CUI
 from cloudinstall.ev import EventLoop
 from cloudinstall.alarms import AlarmMonitor
 from cloudinstall.api.container import Container
@@ -124,9 +124,9 @@ if __name__ == '__main__':
                                  'openstack-status', config)
 
     if config.getopt('headless'):
-        ui = ConsoleUI()
+        ui = CUI()
     else:
-        ui = PegasusGUI()
+        ui = TUI()
 
     ev = EventLoop(ui, config, logger)
     AlarmMonitor.loop = ev

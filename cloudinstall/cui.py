@@ -1,4 +1,3 @@
-#
 # Copyright 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
@@ -24,7 +23,7 @@ from cloudinstall.task import TaskerConsole
 log = logging.getLogger('cloudinstall.consoleui')
 
 
-class ConsoleUI:
+class CUI:
 
     def __init__(self):
         self._missing_attrs = []
@@ -54,12 +53,12 @@ class ConsoleUI:
             self._missing_attrs.append(attr)
 
         try:
-            getattr(ConsoleUI, attr)
+            getattr(CUI, attr)
         except:
             # Log the invalid attribute call
-            log.info("Missing ConsoleUI() attribute: {}".format(attr))
+            log.info("Missing CUI() attribute: {}".format(attr))
             setattr(self.__class__, attr, nofunc)
-            return getattr(ConsoleUI, attr)
+            return getattr(CUI, attr)
 
     def __repr__(self):
         return "<Ubuntu OpenStack Installer Console Interface>"

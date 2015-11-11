@@ -16,3 +16,4 @@
 from .error import ErrorView  # NOQA
 from .services import ServicesView  # NOQA
 from .help import HelpView  # noqa
+from .nodeinstall import NodeInstallWaitView  # noqa

@@ -16,3 +16,5 @@
 
 from .machine import MachineWidget  # NOQA
 from .statusbar import StatusBarWidget  # NOQA
+from .banner import BannerWidget  # noqa
+from .header import HeaderWidget, InstallHeaderWidget  # noqa

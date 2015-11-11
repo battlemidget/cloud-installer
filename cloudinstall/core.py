@@ -21,19 +21,19 @@ from os import path, getenv
 
 from operator import attrgetter
 
+from cloudinstall.async import nb
 from cloudinstall.config import OPENSTACK_RELEASE_LABELS
 from cloudinstall import utils
 from cloudinstall.alarms import AlarmMonitor
 from cloudinstall.state import ControllerState
-from cloudinstall.juju import JujuState
 from cloudinstall.maas import (connect_to_maas, FakeMaasState,
                                MaasMachineStatus)
 from cloudinstall.charms import CharmQueue
 from cloudinstall.log import PrettyLog
 from cloudinstall.placement.controller import (PlacementController,
                                                AssignmentType)
+from cloudinstall.juju import (connect_to_juju, FakeJujuState)
 
-from macumba import JujuClient
 from macumba import Jobs as JujuJobs
 
 
@@ -41,17 +41,35 @@ log = logging.getLogger('cloudinstall.core')
 sys.excepthook = utils.global_exchandler
 
 
-class FakeJujuState:
+def core_authenticate_backends(config):
+    """ Authenticates against Juju and MAAS backends
 
-    @property
-    def services(self):
-        return []
+    Arguments:
+    config: Configuration object
 
-    def machines(self):
-        return []
+    Returns:
+    backends: Dictionary containing one or both Juju and MAAS states
+    """
+    backends = {}
 
-    def invalidate_status_cache(self):
-        "does nothing"
+    if getenv("FAKE_API_DATA"):
+        juju_state = FakeJujuState()
+        maas_state = FakeMaasState()
+    else:
+        juju, juju_state = connect_to_juju(config)
+        backends['juju'] = {
+            'client': juju,
+            'state': juju_state
+        }
+        if config.is_multi():
+            creds = config.getopt('maascreds')
+            maas, maas_state = connect_to_maas(creds)
+            backends['maas'] = {
+                'client': maas,
+                'state': maas_state
+            }
+
+    return backends
 
 
 class Controller:
@@ -75,10 +93,45 @@ class Controller:
             self.config.setopt('current_state',
                                ControllerState.INSTALL_WAIT.value)
 
+    def header_hotkeys(self, key):
+        kbd = self.config.kbd
+        if not self.config.getopt('headless'):
+            if key in kbd['views']['status']:
+                self.ui.render_services_view(
+                    self.nodes, self.juju_state,
+                    self.maas_state, self.config)
+
+            if key in kbd['views']['help']:
+                self.config.setopt('current_state',
+                                   ControllerState.HELP.value,
+                                   keep_previous=True)
+                self.ui.show_help_info()
+
+            if key in kbd['views']['add_service']:
+                self.config.setopt('current_state',
+                                   ControllerState.ADD_SERVICES.value,
+                                   keep_previous=True)
+
+                self.ui.render_placement_view(self.loop,
+                                              self.config,
+                                              self.commit_placement)
+
+                self.ui.render_add_services_dialog(
+                    nb(self.deploy_new_services),
+                    self.cancel_add_services)
+
+            if key in kbd['global']['quit']:
+                self.loop.exit(0)
+
+            if key in kbd['global']['refresh']:
+                self.ui.status_info_message("View was refreshed")
+
+            if key in kbd['global']['esc']:
+                self.config.setopt('current_state',
+                                   self.config.getopt('previous_state'))
+
     def update(self, *args, **kwargs):
         """Render UI according to current state and reset timer
-
-        PegasusGUI only.
         """
         interval = 1
 
@@ -87,22 +140,14 @@ class Controller:
             self.ui.render_placement_view(self.loop,
                                           self.config,
                                           self.commit_placement)
-
         elif current_state == ControllerState.INSTALL_WAIT:
             self.ui.render_node_install_wait(message="Waiting...")
             interval = self.config.node_install_wait_interval
-        elif current_state == ControllerState.ADD_SERVICES:
-            self.ui.render_add_services_dialog(self.deploy_new_services,
-                                               self.cancel_add_services)
-        elif current_state == ControllerState.SERVICES:
-            self.update_node_states()
         else:
-            raise Exception("Internal error, unexpected display "
-                            "state '{}'".format(current_state))
-
-        # self.loop.redraw_screen()
-        AlarmMonitor.add_alarm(self.loop.set_alarm_in(interval, self.update),
-                               "core-controller-update")
+            self.update_node_states()
+            AlarmMonitor.add_alarm(self.loop.set_alarm_in(interval,
+                                                          self.update),
+                                   "core-controller-update")
 
     def update_node_states(self):
         """ Updating node states
@@ -134,29 +179,7 @@ class Controller:
             else:
                 self.ui.services_view.refresh_nodes(self.nodes)
 
-    def authenticate_juju(self):
-        if not len(self.config.juju_env['state-servers']) > 0:
-            state_server = 'localhost:17070'
-        else:
-            state_server = self.config.juju_env['state-servers'][0]
-        self.juju = JujuClient(
-            url=path.join('wss://', state_server),
-            password=self.config.juju_api_password)
-        self.juju.login()
-        self.juju_state = JujuState(self.juju)
-        log.debug('Authenticated against juju api.')
-
-    def initialize(self):
-        """Authenticates against juju/maas and sets up placement controller."""
-        if getenv("FAKE_API_DATA"):
-            self.juju_state = FakeJujuState()
-            self.maas_state = FakeMaasState()
-        else:
-            self.authenticate_juju()
-            if self.config.is_multi():
-                creds = self.config.getopt('maascreds')
-                self.maas, self.maas_state = connect_to_maas(creds)
-
+    def pc_setup(self):
         self.placement_controller = PlacementController(
             self.maas_state, self.config)
 
@@ -219,13 +242,7 @@ class Controller:
         if self.config.getopt('headless'):
             self.begin_deployment()
         else:
-            self.begin_deployment_async()
-
-    @utils.async
-    def begin_deployment_async(self):
-        """ async deployment
-        """
-        self.begin_deployment()
+            nb(self.begin_deployment)
 
     def begin_deployment(self):
         if self.config.is_multi():
@@ -267,41 +284,11 @@ class Controller:
                 controller_machine = self.juju_m_idmap['controller']
                 self.configure_lxc_network(controller_machine)
 
-                for juju_machine_id in self.juju_m_idmap.values():
-                    self.run_apt_go_fast(juju_machine_id)
-
-            if self.config.is_single():
-                self.set_unique_hostnames()
-
             self.deploy_using_placement()
             self.wait_for_deployed_services_ready()
             self.enqueue_deployed_charms()
         else:
             self.ui.status_info_message("Ready")
-
-    def set_unique_hostnames(self):
-        """checks for and ensures unique hostnames, so e.g. ceph can assume
-        that.
-
-        FIXME: Remove once http://pad.lv/1326091 is fixed
-        """
-        count = 0
-        for machine in self.juju_state.machines():
-            count += 1
-            hostname = machine.machine.get('InstanceId',
-                                           "ubuntu-{}".format(count))
-
-            log.debug("Setting hostname of {} to {}".format(machine,
-                                                            hostname))
-            juju_home = self.config.juju_home(use_expansion=True)
-            utils.remote_run(
-                machine.machine_id,
-                cmds="echo {} | sudo tee /etc/hostname".format(hostname),
-                juju_home=juju_home)
-            utils.remote_run(
-                machine.machine_id,
-                cmds="sudo hostname {}".format(hostname),
-                juju_home=juju_home)
 
     def all_maas_machines_ready(self):
         self.maas_state.invalidate_nodes_cache()
@@ -393,16 +380,6 @@ class Controller:
                                            {'instance_id':
                                             machine.instance_id})
             self.juju_m_idmap[machine.instance_id] = m_id
-
-    def run_apt_go_fast(self, machine_id):
-        utils.remote_cp(machine_id,
-                        src=path.join(self.config.share_path,
-                                      "tools/apt-go-fast"),
-                        dst="/tmp/apt-go-fast",
-                        juju_home=self.config.juju_home(use_expansion=True))
-        utils.remote_run(machine_id,
-                         cmds="sudo sh /tmp/apt-go-fast",
-                         juju_home=self.config.juju_home(use_expansion=True))
 
     def configure_lxc_network(self, machine_id):
         # upload our lxc-host-only template and setup bridge
@@ -622,7 +599,6 @@ class Controller:
                                      self.maas_state, self.config)
         self.loop.redraw_screen()
 
-    @utils.async
     def deploy_new_services(self):
         """Deploys newly added services in background thread.
         Does not attempt to create new machines.
@@ -634,7 +610,6 @@ class Controller:
 
         self.deploy_using_placement()
         self.wait_for_deployed_services_ready()
-        self.set_unique_hostnames()
         self.enqueue_deployed_charms()
 
     def cancel_add_services(self):
@@ -658,7 +633,9 @@ class Controller:
             label = OPENSTACK_RELEASE_LABELS[rel]
             self.ui.set_openstack_rel(label)
             self.initialize()
-            self.loop.register_callback('refresh_display', self.update)
+
+            self.loop.build_loop(unhandled_input=self.header_hotkeys)
+
             AlarmMonitor.add_alarm(self.loop.set_alarm_in(0, self.update),
                                    "controller-start")
             self.config.setopt("gui_started", True)

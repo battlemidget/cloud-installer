@@ -55,6 +55,8 @@ installed, one for OpenStack Horizon and the other for the Juju GUI.
             Text("""
 - (R/F5) refreshes the displayed state immediately
 
+- (S/s) Display the Status View
+
 - (A/a/F6) brings up a dialog box for adding additional units. This is how to
   add compute units or a storage service. This dialog takes care of launching
   required dependencies, so for example, launching swift here will add a

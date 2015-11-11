@@ -18,159 +18,31 @@
 from __future__ import unicode_literals
 import sys
 import logging
-import random
 
 import urwid
-from urwid import (Text, Columns,
+from urwid import (Text,
                    Filler, Frame, WidgetWrap, Button,
                    Pile, Divider)
 
 from cloudinstall.task import Tasker
-from cloudinstall import utils
-from cloudinstall.ui import (ScrollableWidgetWrap,
-                             ScrollableListBox,
-                             SelectorWithDescription,
+from cloudinstall.ui import (SelectorWithDescription,
                              PasswordInput,
                              MaasServerInput,
                              LandscapeInput)
-from cloudinstall.ui.widgets import StatusBarWidget
+from cloudinstall.ui.widgets import (StatusBarWidget,
+                                     BannerWidget,
+                                     HeaderWidget)
 from cloudinstall.alarms import AlarmMonitor
 from cloudinstall.ui.views import (ErrorView,
                                    ServicesView,
-                                   HelpView)
+                                   HelpView,
+                                   NodeInstallWaitView)
 from cloudinstall.ui.utils import Color, Padding
 from cloudinstall.machinewait import MachineWaitView
 from cloudinstall.placement.ui import PlacementView
 from cloudinstall.placement.ui.add_services_dialog import AddServicesDialog
 
 log = logging.getLogger('cloudinstall.gui')
-sys.excepthook = utils.global_exchandler
-
-
-class Banner(ScrollableWidgetWrap):
-
-    def __init__(self):
-        self.text = []
-        self.flash_text = Text('', align='center')
-        self.BANNER = [
-            "",
-            "",
-            "Ubuntu OpenStack Installer",
-            "",
-            "By Canonical, Ltd.",
-            ""
-        ]
-        super().__init__(self._create_text())
-
-    def _create_text(self):
-        self.text = []
-        for line in self.BANNER:
-            self._insert_line(line)
-
-        self.text.append(self.flash_text)
-        return ScrollableListBox(self.text)
-
-    def _insert_line(self, line):
-        text = Text(line, align='center')
-        self.text.append(text)
-
-    def flash(self, msg):
-        self.flash_text.set_text([('error_major', msg)])
-
-    def flash_reset(self):
-        self.flash_text.set_text('')
-
-
-class NodeInstallWaitMode(WidgetWrap):
-
-    def __init__(self,
-                 message="Installer is initializing nodes. Please wait."):
-        self.message = message
-        super().__init__(self._build_node_waiting())
-
-    def _build_node_waiting(self):
-        """ creates a loading screen if nodes do not exist yet """
-        text = [Padding.line_break(""),
-                Text(self.message, align="center"),
-                Padding.line_break("")]
-
-        load_box = [Color.pending_icon_on(Text("\u2581",
-                                               align="center")),
-                    Color.pending_icon_on(Text("\u2582",
-                                               align="center")),
-                    Color.pending_icon_on(Text("\u2583",
-                                               align="center")),
-                    Color.pending_icon_on(Text("\u2584",
-                                               align="center")),
-                    Color.pending_icon_on(Text("\u2585",
-                                               align="center")),
-                    Color.pending_icon_on(Text("\u2586",
-                                               align="center")),
-                    Color.pending_icon_on(Text("\u2587",
-                                               align="center")),
-                    Color.pending_icon_on(Text("\u2588",
-                                               align="center"))]
-
-        # Add loading boxes
-        random.shuffle(load_box)
-        loading_boxes = []
-        loading_boxes.append(('weight', 1, Text('')))
-        for i in load_box:
-            loading_boxes.append(('pack',
-                                  load_box[random.randrange(len(load_box))]))
-        loading_boxes.append(('weight', 1, Text('')))
-        loading_boxes = Columns(loading_boxes)
-
-        return Filler(Pile(text + [loading_boxes]),
-                      valign="middle")
-
-
-class Header(WidgetWrap):
-
-    TITLE_TEXT = "Ubuntu OpenStack Installer - Dashboard"
-
-    def __init__(self):
-        self.text = Text(self.TITLE_TEXT)
-        self.widget = Color.frame_header(self.text)
-        self.pile = Pile([self.widget, Text("")])
-        self.set_show_add_units_hotkey(False)
-        super().__init__(self.pile)
-
-    def set_openstack_rel(self, release):
-        self.text.set_text("{} ({})".format(self.TITLE_TEXT, release))
-
-    def set_show_add_units_hotkey(self, show):
-        self.show_add_units = show
-        self.update()
-
-    def update(self):
-        if self.show_add_units:
-            add_unit_string = '(A)dd Services \N{BULLET}'
-        else:
-            add_unit_string = ''
-        tw = Color.frame_subheader(Text(add_unit_string + ' (H)elp \N{BULLET} '
-                                        '(R)efresh \N{BULLET} (Q)uit',
-                                        align='center'))
-        self.pile.contents[1] = (tw, self.pile.options())
-
-
-class InstallHeader(WidgetWrap):
-
-    TITLE_TEXT = "Ubuntu Openstack Installer - Software Installation"
-
-    def __init__(self):
-        self.text = Text(self.TITLE_TEXT)
-        self.widget = Color.frame_header(self.text)
-        w = [
-            Color.frame_header(self.widget),
-            Color.frame_subheader(Text(
-                '(Q)uit', align='center'))
-        ]
-        super().__init__(Pile(w))
-
-    def set_openstack_rel(self, release):
-        self.text.set_text("{} ({})".format(
-            self.TITLE_TEXT, release))
 
 
 class StepInfo(WidgetWrap):
@@ -217,15 +89,13 @@ def _check_encoding():
         sys.exit(msg.encode('ascii'))
 
 
-class PegasusGUI(WidgetWrap):
+class TUI(WidgetWrap):
     key_conversion_map = {'tab': 'down', 'shift tab': 'up'}
 
     def __init__(self, header=None, body=None, footer=None):
         _check_encoding()  # Make sure terminal supports utf8
-        cb = self.show_exception_message
-        utils.register_async_exception_callback(cb)
-        self.header = header if header else Header()
-        self.body = body if body else Banner()
+        self.header = header if header else HeaderWidget()
+        self.body = body if body else BannerWidget()
         self.footer = footer if footer else StatusBarWidget('')
 
         self.frame = Frame(self.body,
@@ -324,7 +194,7 @@ class PegasusGUI(WidgetWrap):
                                                               ppcstr))
 
     def render_node_install_wait(self, message=None, **kwargs):
-        self.frame.body = NodeInstallWaitMode(message, **kwargs)
+        self.frame.body = NodeInstallWaitView(message, **kwargs)
 
     def render_placement_view(self, loop, config, cb):
         """ render placement view

@@ -1,5 +1,4 @@
-#
-# Copyright 2014 Canonical, Ltd.
+# Copyright 2014, 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -14,30 +13,25 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from enum import Enum, IntEnum, unique
 import logging
 
-log = logging.getLogger('cloudinstall.state')
+log = logging.getLogger('state')
 
+install_state = {
+    0: 'RUNNING',
+    1: 'NODE_WAIT'
+}
 
-class InstallState(IntEnum):
-    RUNNING = 0
-    NODE_WAIT = 1
+controller_state = {
+    0: 'INSTALL_WAIT',
+    1: 'PLACEMENT',
+    2: 'SERVICES',
+    3: 'ADD_SERVICES',
+    4: 'HELP'
+}
 
-
-@unique
-class ControllerState(IntEnum):
-
-    """Names for current screen state"""
-    INSTALL_WAIT = 0
-    PLACEMENT = 1
-    SERVICES = 2
-    ADD_SERVICES = 3
-
-
-class CharmState(Enum):
-
-    """ Charm relation states """
-    REQUIRED = 0
-    OPTIONAL = 1
-    CONFLICTED = 2
+charm_state = {
+    0: 'REQUIRED',
+    1: 'OPTIONAL',
+    2: 'CONFLICTED'
+}

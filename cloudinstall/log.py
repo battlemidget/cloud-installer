@@ -1,7 +1,4 @@
-#
-# log.py - Logger
-#
-# Copyright 2014 Canonical, Ltd.
+# Copyright 2014, 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -19,7 +16,6 @@
 """ Logging interface
 """
 
-from __future__ import unicode_literals
 import logging
 import os
 import pprint
@@ -27,13 +23,16 @@ import pprint
 from logging.handlers import TimedRotatingFileHandler
 
 
-class PrettyLog():
+def pretty_log(obj):
+    """ Pretty print log output
 
-    def __init__(self, obj):
-        self.obj = obj
+    Arguments:
+    obj: Python object to prettify
 
-    def __repr__(self):
-        return pprint.pformat(self.obj)
+    Returns:
+    prettified output of object
+    """
+    return pprint.pformat(obj)
 
 
 def setup_logger(name=__name__, headless=False):
