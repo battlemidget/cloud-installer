@@ -22,7 +22,7 @@ import logging
 log = logging.getLogger('eventloop')
 
 
-def ev_build_loop(ui, config, **kwargs):
+def build_loop(ui, config, **kwargs):
     """ Returns event loop configured with color palette
 
     Arguments:
@@ -46,13 +46,13 @@ def ev_build_loop(ui, config, **kwargs):
         ui, STYLES, event_loop=evl, **opts)
 
 
-def ev_exit_loop():
+def exit_loop():
     """ Exits urwid.MainLoop
     """
     urwid.ExitMainLoop()
 
 
-def ev_redraw_screen(loop):
+def redraw_screen(loop):
     """ Redraws screen
 
     Arguments:
@@ -61,7 +61,7 @@ def ev_redraw_screen(loop):
     loop.draw_screen()
 
 
-def ev_set_alarm_in(loop, interval, cb):
+def set_alarm_in(loop, interval, cb):
     """ Sets an alarm to be executed later
 
     Arguments:
@@ -72,7 +72,7 @@ def ev_set_alarm_in(loop, interval, cb):
     loop.set_alarm_in(interval, cb)
 
 
-def ev_remove_alarm(loop, handle):
+def remove_alarm(loop, handle):
     """ Removes an alarm
 
     Arguments:
@@ -82,7 +82,7 @@ def ev_remove_alarm(loop, handle):
     loop.remove_alarm(handle)
 
 
-def ev_run_loop(loop):
+def run_loop(loop):
     """ Starts event loop
 
     Arguments:

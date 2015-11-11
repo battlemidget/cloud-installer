@@ -7,6 +7,8 @@ GIT_REV		    := $(shell git log --oneline -n1| cut -d" " -f1)
 VERSION             := $(shell ./tools/version)
 UPSTREAM_DEB        := https://github.com/Ubuntu-Solutions-Engineering/openstack-installer-deb.git
 UPSTREAM_DEB_COMMIT := 4eca059
+UPSTREAM_UOILIB     := https://github.com/battlemidget/openstack-installer-lib.git
+UPSTREAM_UOILIB_COMMIT :=  164c396
 UPSTREAM_MACUMBA    := https://github.com/Ubuntu-Solutions-Engineering/macumba.git
 UPSTREAM_MACUMBA_COMMIT := 5674861
 UPSTREAM_MAASCLIENT := https://github.com/Ubuntu-Solutions-Engineering/maasclient.git
@@ -64,15 +66,19 @@ git-sync-requirements:
 	rm -rf debian
 	rm -rf macumba
 	rm -rf maasclient
+	rm -rf uoilib
 	git clone -q $(UPSTREAM_DEB) tmp/debian
 	git clone -q $(UPSTREAM_MACUMBA) tmp/macumba
 	git clone -q $(UPSTREAM_MAASCLIENT) tmp/maasclient
+	git clone -q $(UPSTREAM_UOILIB) tmp/uoilib
 	(cd tmp/debian && git checkout -f $(UPSTREAM_DEB_COMMIT))
 	(cd tmp/maasclient && git checkout -f $(UPSTREAM_MAASCLIENT_COMMIT))
 	(cd tmp/macumba && git checkout -f $(UPSTREAM_MACUMBA_COMMIT))
+	(cd tmp/uoilib && git checkout -f $(UPSTREAM_UOILIB_COMMIT))
 	rsync -az --delete tmp/debian/debian .
 	rsync -az --delete tmp/macumba/macumba .
 	rsync -az --delete tmp/maasclient/maasclient .
+	rsync -az --delete tmp/uoilib/uoilib .
 	rm -rf tmp
 
 git_rev:

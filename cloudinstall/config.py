@@ -17,11 +17,11 @@
 import datetime
 import os
 import yaml
-import cloudinstall.utils as utils
+import uoilib.utils as utils
 import logging
 
 
-log = logging.getLogger('cloudinstall.config')
+log = logging.getLogger('config')
 
 
 # The values of these three install types are user-visible strings:

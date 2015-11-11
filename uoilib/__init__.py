@@ -1,4 +1,5 @@
-# Copyright 2014, 2015 Canonical, Ltd.
+# Copyright (C) 2015 Adam Stokes
+# Copyright (C) 2015 Canonical, Ltd.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -12,35 +13,3 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-import logging
-
-log = logging.getLogger('state')
-
-states = {
-    'install': {
-        'RUNNING': 0,
-        'NODE_WAIT': 1
-    },
-
-    'controller': {
-        'INSTALL_WAIT': 0,
-        'PLACEMENT': 1,
-        'SERVICES': 2,
-        'ADD_SERVICES': 3,
-        'HELP': 4
-    },
-
-    'charm': {
-        'REQUIRED': 0,
-        'OPTIONAL': 1,
-        'CONFLICTED': 2
-    }
-}
-
-
-def get_state(key, state):
-    try:
-        states[key][state]
-    except:
-        log.error("Unknown state: {}".format(state))

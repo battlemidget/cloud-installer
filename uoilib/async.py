@@ -14,22 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """ Async Handler
-Provides async operations for various api calls and other non-blocking
-work.
-The way this works is you create your non-blocking thread:
-.. code::
-    def my_async_method(self):
-        pool.submit(func, *args)
-
-    # In your controller you would then call using coroutines
-    @coroutine
-    def do_async_action(self):
-        try:
-            yield my_async_method()
-            # Move to next coroutine or return if finish
-            self.do_second_async_action()
-        except Exeception as e:
-            log.exception("Failed in our non-blocking code.")
 """
 
 import logging
@@ -40,6 +24,8 @@ pool = ThreadPoolExecutor(1)
 
 
 def nb(func, *args, **kwargs):
+    """ Non-blocking call
+    """
     log.debug(
         'calling non-blocking func: {} '
         '(args: {}, kwds: {})'.format(func, args, kwargs))
