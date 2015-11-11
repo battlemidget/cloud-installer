@@ -17,8 +17,27 @@
 """
 
 import logging
+import os.path as path
+import cloudinstall.utils as utils
 
 log = logging.getLogger('status.single')
+
+
+def configure_lxc_network(env, machine_id):
+    config = env['config']
+    # upload our lxc-host-only template and setup bridge
+    log.info('Copying network specifications to machine')
+    srcpath = path.join(config.tmpl_path, 'lxc-host-only')
+    destpath = "/tmp/lxc-host-only"
+    utils.remote_cp(machine_id, src=srcpath, dst=destpath,
+                    juju_home=config.juju_home(use_expansion=True))
+    log.debug('Updating network configuration for machine')
+    utils.remote_run(machine_id,
+                     cmds="sudo chmod +x /tmp/lxc-host-only",
+                     juju_home=config.juju_home(use_expansion=True))
+    utils.remote_run(machine_id,
+                     cmds="sudo /tmp/lxc-host-only",
+                     juju_home=config.juju_home(use_expansion=True))
 
 
 def add_machines_to_juju(env, placement_controller):
@@ -33,6 +52,7 @@ def add_machines_to_juju(env, placement_controller):
     """
     juju_state = env['juju_state']
     juju = env['juju']
+
     juju_state.invalidate_status_cache()
     juju_m_idmap = {}
     for jm in juju_state.machines():

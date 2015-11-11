@@ -15,6 +15,7 @@
 
 from collections import defaultdict, Counter
 import copy
+import os.path as path
 from enum import Enum
 import logging
 import yaml
@@ -690,3 +691,47 @@ class PlacementController:
         import pprint
         log.debug("gen_single() = '{}'".format(pprint.pformat(assignments)))
         return assignments
+
+
+def placement_controller(env):
+    """ Generate placement controller
+    """
+    maas_state = env['maas_state']
+    juju_state = env['juju_state']
+    config = env['config']
+    placement_controller = PlacementController(
+        maas_state, config)
+
+    if path.exists(config.placements_filename):
+        try:
+            with open(config.placements_filename, 'r') as pf:
+                placement_controller.load(pf)
+        except Exception:
+            log.exception("Exception loading placement")
+            raise Exception("Could not load "
+                            "{}.".format(config.placements_filename))
+        log.info("Loaded placements from "
+                 "'{}'".format(config.placements_filename))
+
+        # If we have no machines (so we are a fresh install) but
+        # are reading a placements.yaml from a previous install,
+        # so it has no assignments, only deployments, tell the
+        # controller to use the deployments in the file as
+        # assignments:
+        if len(placement_controller.machines_pending()) == 0 and \
+           len(juju_state.machines()) == 0:
+            placement_controller.set_assignments_from_deployments()
+            log.info("Using deployments saved from previous install"
+                     " as new assignments.")
+    else:
+        if config.is_multi():
+            def_assignments = placement_controller.gen_defaults()
+        else:
+            def_assignments = placement_controller.gen_single()
+
+        placement_controller.set_all_assignments(def_assignments)
+
+    pfn = config.placements_filename
+    placement_controller.set_autosave_filename(pfn)
+    placement_controller.do_autosave()
+    return placement_controller

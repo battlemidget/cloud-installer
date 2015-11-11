@@ -16,4 +16,5 @@
 """ Core controller handlers
 """
 
-
+from . import multi  # noqa
+from . import single  # noqa

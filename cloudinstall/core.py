@@ -75,67 +75,6 @@ def all_juju_machines_started(env, placement_controller):
     return n_allocated >= n_needed
 
 
-def placement_controller(env):
-    """ Generate placement controller
-    """
-    maas_state = env['maas_state']
-    juju_state = env['juju_state']
-    config = env['config']
-    placement_controller = PlacementController(
-        maas_state, config)
-
-    if path.exists(config.placements_filename):
-        try:
-            with open(config.placements_filename, 'r') as pf:
-                placement_controller.load(pf)
-        except Exception:
-            log.exception("Exception loading placement")
-            raise Exception("Could not load "
-                            "{}.".format(config.placements_filename))
-        log.info("Loaded placements from "
-                 "'{}'".format(config.placements_filename))
-
-        # If we have no machines (so we are a fresh install) but
-        # are reading a placements.yaml from a previous install,
-        # so it has no assignments, only deployments, tell the
-        # controller to use the deployments in the file as
-        # assignments:
-        if len(placement_controller.machines_pending()) == 0 and \
-           len(juju_state.machines()) == 0:
-            placement_controller.set_assignments_from_deployments()
-            log.info("Using deployments saved from previous install"
-                     " as new assignments.")
-    else:
-        if config.is_multi():
-            def_assignments = placement_controller.gen_defaults()
-        else:
-            def_assignments = placement_controller.gen_single()
-
-        placement_controller.set_all_assignments(def_assignments)
-
-    pfn = config.placements_filename
-    placement_controller.set_autosave_filename(pfn)
-    placement_controller.do_autosave()
-    return placement_controller
-
-    # if self.config.is_single():
-    #     if self.config.getopt('headless'):
-    #         self.begin_deployment()
-    #     else:
-    #         self.begin_deployment_async()
-    #     return
-
-    # if self.config.getopt('edit_placement') or \
-    #    not self.placement_controller.can_deploy():
-    #     self.config.setopt(
-    #         'current_state', ControllerState.PLACEMENT.value)
-    # else:
-    #     if self.config.getopt('headless'):
-    #         self.begin_deployment()
-    #     else:
-    #         self.begin_deployment_async()
-
-
 def commit_placement(env, ui, loop, nodes):
     juju_state = env['juju_state']
     maas_state = env['maas_state']
@@ -145,23 +84,6 @@ def commit_placement(env, ui, loop, nodes):
                             maas_state, config)
     loop.redraw_screen()
     deploy()
-
-
-def configure_lxc_network(env, machine_id):
-    config = env['config']
-    # upload our lxc-host-only template and setup bridge
-    log.info('Copying network specifications to machine')
-    srcpath = path.join(config.tmpl_path, 'lxc-host-only')
-    destpath = "/tmp/lxc-host-only"
-    utils.remote_cp(machine_id, src=srcpath, dst=destpath,
-                    juju_home=config.juju_home(use_expansion=True))
-    log.debug('Updating network configuration for machine')
-    utils.remote_run(machine_id,
-                     cmds="sudo chmod +x /tmp/lxc-host-only",
-                     juju_home=config.juju_home(use_expansion=True))
-    utils.remote_run(machine_id,
-                     cmds="sudo /tmp/lxc-host-only",
-                     juju_home=config.juju_home(use_expansion=True))
 
 
 def deploy_using_placement(env, placement_controller, deployed_charm_classes):
@@ -394,9 +316,10 @@ def deploy_new_services(env, loop, ui, nodes):
     enqueue_deployed_charms()
 
 
-def header_hotkeys(self, key):
-    kbd = self.config.kbd
-    if not self.config.getopt('headless'):
+def header_hotkeys(self, key, env, ui):
+    config = env['config']
+    kbd = config.kbd
+    if not config.getopt('headless'):
         if key in kbd['views']['status']:
             self.ui.render_services_view(
                 self.nodes, self.juju_state,
