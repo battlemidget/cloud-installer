@@ -15,10 +15,30 @@
 
 """ UI utilities """
 
+import urwid
+import sys
 from urwid import Padding as _Padding
 from urwid import AttrMap, Text, Divider
 from functools import partialmethod
 from cloudinstall.ui.palette import STYLES
+
+
+def check_encoding():
+    """Set the Urwid global byte encoding to utf-8.
+
+    Exit the application if, for some reasons, the change does not have effect.
+    """
+    urwid.set_encoding('utf-8')
+    if not urwid.supports_unicode():
+        # Note: the following message must only include ASCII characters.
+        msg = (
+            'Error: your terminal does not seem to support UTF-8 encoding.\n'
+            'Please check your locale settings.\n'
+            'On Ubuntu, running the following might fix the problem:\n'
+            '  sudo locale-gen en_US.UTF-8\n'
+            '  sudo dpkg-reconfigure locales'
+        )
+        sys.exit(msg.encode('ascii'))
 
 
 def apply_padders(cls):

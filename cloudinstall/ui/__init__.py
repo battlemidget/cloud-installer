@@ -140,6 +140,18 @@ class InfoDialog(WidgetWrap):
         self.close_func(self)
 
 
+def selector_with_desc(frame, title, opts, cb):
+    """ Shows a Selection with descriptive options
+
+    Arguments:
+    frame: urwid.Frame
+    title: title of selection panel
+    opts: options for selection
+    cb: callback to be executed
+    """
+    frame.body = SelectorWithDescription(title, opts, cb)
+
+
 class SelectorWithDescription(WidgetWrap):
 
     """
@@ -207,6 +219,20 @@ class SelectorWithDescription(WidgetWrap):
 
     def emit_done_signal(self, *args):
         emit_signal(self, 'done', *args)
+
+
+
+def show_password_input(self, title, cb):
+    self.frame.body = PasswordInput(title, cb)
+
+def show_maas_input(self, title, cb):
+    self.frame.body = MaasServerInput(title, cb)
+
+def show_landscape_input(self, title, cb):
+    self.frame.body = LandscapeInput(title, cb)
+
+def set_pending_deploys(self, pending_charms):
+    self.frame.footer.set_pending_deploys(pending_charms)
 
 
 class PasswordInput(Dialog):

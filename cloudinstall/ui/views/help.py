@@ -19,6 +19,14 @@ from cloudinstall.ui.lists import SimpleList
 from cloudinstall.ui.utils import Color, Padding
 
 
+def show_help(frame):
+    """ Shows Help View
+
+    Arguments: urwid.Frame
+    """
+    frame.body = HelpView()
+
+
 class HelpView(WidgetWrap):
 
     def __init__(self):
