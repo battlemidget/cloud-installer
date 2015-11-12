@@ -17,7 +17,7 @@ import logging
 import time
 import sys
 
-from os import path, getenv
+from os import path, getenv, environ
 
 from operator import attrgetter
 
@@ -33,7 +33,10 @@ from cloudinstall.log import PrettyLog
 from cloudinstall.placement.controller import (PlacementController,
                                                AssignmentType)
 
-from macumba import JujuClient
+from jujuclient import (
+    Environment, EnvironmentNotBootstrapped
+)
+
 from macumba import Jobs as JujuJobs
 
 
@@ -139,16 +142,17 @@ class Controller:
                                          self.maas_state, self.config)
 
     def authenticate_juju(self):
-        if not len(self.config.juju_env['state-servers']) > 0:
-            state_server = 'localhost:17070'
-        else:
-            state_server = self.config.juju_env['state-servers'][0]
-        self.juju = JujuClient(
-            url=path.join('wss://', state_server),
-            password=self.config.juju_api_password)
-        self.juju.login()
+        environ['JUJU_HOME'] = self.config.juju_home(use_expansion=True)
+        try:
+            if self.config.is_single():
+                self.juju = Environment.connect('local')
+            else:
+                self.juju = Environment.connect('maas')
+        except EnvironmentNotBootstrapped as e:
+            raise e
+        log.debug('Authenticated against juju api: {}'.format(self.juju))
+
         self.juju_state = JujuState(self.juju)
-        log.debug('Authenticated against juju api.')
 
     def initialize(self):
         """Authenticates against juju/maas and sets up placement controller."""
@@ -365,8 +369,8 @@ class Controller:
         self.juju_state.invalidate_status_cache()
         self.juju_m_idmap = {}
         for jm in self.juju_state.machines():
-            response = self.juju.get_annotations(jm.machine_id,
-                                                 'machine')
+            response = self.juju.get_annotation(jm.machine_id,
+                                                'machine')
             ann = response['Annotations']
             if 'instance_id' in ann:
                 self.juju_m_idmap[ann['instance_id']] = jm.machine_id
@@ -374,7 +378,7 @@ class Controller:
         log.debug("existing juju machines: {}".format(self.juju_m_idmap))
 
         def get_created_machine_id(iid, response):
-            d = response['Machines'][0]
+            d = response['Machines']['0']
             if d['Error']:
                 raise Exception("Error adding machine '{}':"
                                 "{}".format(iid, response))

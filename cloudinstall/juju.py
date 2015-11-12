@@ -22,6 +22,7 @@ import time
 
 from cloudinstall.machine import Machine
 from cloudinstall.service import Service
+from cloudinstall.log import PrettyLog
 
 from macumba import RequestTimeout
 
@@ -79,6 +80,8 @@ class JujuState:
             while self._juju_status is None:
                 try:
                     self._juju_status = self.juju.status()
+                    log.debug("Juju status: {}".format(
+                        PrettyLog(self._juju_status)))
                 except RequestTimeout:
                     n_retries += 1
                     if n_retries == 5:
