@@ -33,6 +33,7 @@ class ControllerState(IntEnum):
     PLACEMENT = 1
     SERVICES = 2
     ADD_SERVICES = 3
+    HELP = 4
 
 
 class CharmState(Enum):

@@ -40,8 +40,7 @@ class WaitForDeployedServicesReadyCoreTestCase(unittest.TestCase):
 
         self.conf.setopt('headless', False)
         self.dc = Controller(
-            ui=self.mock_ui, config=self.conf,
-            loop=self.mock_loop)
+            ui=self.mock_ui, config=self.conf)
         self.dc.initialize = MagicMock()
         self.dc.juju_state = JujuState(juju=MagicMock())
         self.dc.juju_state.all_agents_started = MagicMock()

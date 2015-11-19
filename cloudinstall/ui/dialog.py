@@ -33,7 +33,6 @@ class Dialog(WidgetWrap):
 
     __metaclass__ = signals.MetaSignals
     signals = ['done']
-    # key_conversion_map = {'tab': 'down', 'shift tab': 'up'}
 
     input_items = []
 
@@ -43,10 +42,6 @@ class Dialog(WidgetWrap):
         self.input_selection = OrderedDict()
         connect_signal(self, 'done', self.cb)
         super().__init__(self._build_widget())
-
-    # def keypress(self, size, key):
-    #     key = self.key_conversion_map.get(key, key)
-    #     return super().keypress(size, key)
 
     def _build_buttons(self):
         buttons = [

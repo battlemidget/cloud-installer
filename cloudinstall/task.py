@@ -20,6 +20,7 @@ import yaml
 
 from cloudinstall import utils
 from cloudinstall.async import AsyncPool
+from cloudinstall.ev import EventLoop
 from cloudinstall.alarms import AlarmMonitor
 from cloudinstall.config import Config
 
@@ -45,10 +46,9 @@ class Tasker:
 
     """
 
-    def __init__(self, display_controller, loop, config):
+    def __init__(self, display_controller, config):
         self.config = config
         self.display_controller = display_controller
-        self.loop = loop
         self.tasks = []  # (name, starttime, endtime=None)
         self.tasks_started_debug = []
         self.current_task_index = 0
@@ -119,7 +119,8 @@ class Tasker:
         self.stopped = True
         self.write_timings()
 
-    def update_progress(self, loop=None, userdata=None):
+    def update_progress(self, userdata=None, *args):
+        log.debug("update progress: {} {}".format(userdata, args))
         self.alarm = None
         if self.stopped:
             # if stopped was set in a separate thread, return and
@@ -148,7 +149,7 @@ class Tasker:
 
         self.display_controller.render_node_install_wait(m)
         f = self.update_progress
-        self.alarm = self.loop.set_alarm_in(0.3, f)
+        self.alarm = EventLoop.loop.set_alarm_in(0.3, f)
         AlarmMonitor.add_alarm(self.alarm, "tasker-update-progress")
 
 
@@ -156,8 +157,7 @@ class TaskerConsole:
 
     """ Console tasker """
 
-    def __init__(self, display_controller, loop, config):
-        self.loop = loop
+    def __init__(self, display_controller, config):
         self.config = config
         self.display_controller = display_controller
         self.tasks = []
@@ -176,10 +176,10 @@ class FakeInstall:
 
     """For testing only, use as a replacement for MultiInstall*"""
 
-    def __init__(self, loop, display_controller):
-        super().__init__(display_controller, loop)
+    def __init__(self, display_controller):
+        super().__init__(display_controller)
         self.config = Config()
-        self.tasker = Tasker(display_controller, loop)
+        self.tasker = Tasker(display_controller)
         self.display_controller = display_controller
         # cb = self.display_controller.show_exception_message
         # utils.register_async_exception_callback(cb)

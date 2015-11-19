@@ -332,10 +332,9 @@ class PlacementView(WidgetWrap):
     """
 
     def __init__(self, display_controller, placement_controller,
-                 loop, config, do_deploy_cb):
+                 config, do_deploy_cb):
         self.display_controller = display_controller
         self.placement_controller = placement_controller
-        self.loop = loop
         self.config = config
         self.do_deploy_cb = do_deploy_cb
         w = self.build_widgets()

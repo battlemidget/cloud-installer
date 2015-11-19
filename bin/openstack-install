@@ -30,7 +30,6 @@ from cloudinstall.consoleui import ConsoleUI
 from cloudinstall.controllers.installbase import InstallController
 from cloudinstall.config import Config
 from cloudinstall.ev import EventLoop
-from cloudinstall.alarms import AlarmMonitor
 from cloudinstall import __version__ as version
 
 CFG_FILE = os.path.join(utils.install_home(),
@@ -239,11 +238,6 @@ if __name__ == '__main__':
         print(msg)
         sys.exit(1)
 
-    if cfg.getopt('headless'):
-        ui = ConsoleUI()
-    else:
-        ui = PegasusGUI(header=InstallHeader())
-
     # Set proxy
     if cfg.getopt('http_proxy'):
         os.environ['HTTP_PROXY'] = cfg.getopt('http_proxy')
@@ -252,15 +246,17 @@ if __name__ == '__main__':
         os.environ['HTTPS_PROXY'] = cfg.getopt('https_proxy')
         os.environ['https_proxy'] = cfg.getopt('https_proxy')
 
-    # Choose event loop
-    ev = EventLoop(ui, cfg, logger)
+    if cfg.getopt('headless'):
+        ui = ConsoleUI()
+    else:
+        ui = PegasusGUI(header=InstallHeader(), config=cfg)
 
-    # Bind event loops alarm tracking
-    AlarmMonitor.loop = ev
+    # Choose event loop
+    EventLoop.build_loop(ui, cfg)
 
     try:
         install = InstallController(
-            ui=ui, config=cfg, loop=ev)
+            ui=ui, config=cfg)
     except:
         print("Unable to start install controller")
         sys.exit(1)
@@ -280,4 +276,4 @@ if __name__ == '__main__':
             import pdb
             pdb.post_mortem()
     finally:
-        sys.exit(ev.error_code)
+        sys.exit(EventLoop.error_code)

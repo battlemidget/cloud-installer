@@ -27,6 +27,8 @@ from urwid import (Text, Columns,
 
 from cloudinstall.task import Tasker
 from cloudinstall import utils
+from cloudinstall.ev import EventLoop
+from cloudinstall.state import ControllerState
 from cloudinstall.ui import (ScrollableWidgetWrap,
                              ScrollableListBox,
                              SelectorWithDescription,
@@ -263,9 +265,8 @@ def _check_encoding():
 
 
 class PegasusGUI(WidgetWrap):
-    key_conversion_map = {'tab': 'down', 'shift tab': 'up'}
-
-    def __init__(self, header=None, body=None, footer=None):
+    def __init__(self, header=None, body=None, footer=None, config=None):
+        self.config = config
         _check_encoding()  # Make sure terminal supports utf8
         cb = self.show_exception_message
         utils.register_async_exception_callback(cb)
@@ -285,24 +286,25 @@ class PegasusGUI(WidgetWrap):
         super().__init__(self.frame)
 
     def keypress(self, size, key):
-        key = self.key_conversion_map.get(key, key)
+        if not self.config.getopt('headless'):
+            if key in ['h', 'H', '?']:
+                self.config.setopt('current_state',
+                                   ControllerState.HELP.value)
+            if key in ['a', 'A', 'f6']:
+                self.config.setopt('current_state',
+                                   ControllerState.ADD_SERVICES.value)
+            if key in ['s', 'S']:
+                self.config.setopt('current_state',
+                                   ControllerState.SERVICES.value)
+            if key in ['q', 'Q']:
+                raise urwid.ExitMainLoop()
+            if key in ['r', 'R', 'f5']:
+                self.status_info_message("View was refreshed")
+                EventLoop.redraw_screen()
+
+            key_conversion_map = {'tab': 'down', 'shift tab': 'up'}
+            key = key_conversion_map.get(key, key)
         return super().keypress(size, key)
-
-    def focus_next(self):
-        if hasattr(self.frame.body, 'scroll_down'):
-            self.frame.body.scroll_down()
-
-    def focus_previous(self):
-        if hasattr(self.frame.body, 'scroll_up'):
-            self.frame.body.scroll_up()
-
-    def focus_first(self):
-        if hasattr(self.frame.body, 'scroll_top'):
-            self.frame.body.scroll_top()
-
-    def focus_last(self):
-        if hasattr(self.frame.body, 'scroll_bottom'):
-            self.frame.body.scroll_bottom()
 
     def show_help_info(self):
         self.controller = self.frame.body
@@ -377,7 +379,7 @@ class PegasusGUI(WidgetWrap):
     def render_node_install_wait(self, message=None, **kwargs):
         self.frame.body = NodeInstallWaitMode(message, **kwargs)
 
-    def render_placement_view(self, loop, config, cb):
+    def render_placement_view(self, config, cb):
         """ render placement view
 
         :param cb: deploy callback trigger
@@ -385,7 +387,7 @@ class PegasusGUI(WidgetWrap):
         if self.placement_view is None:
             assert self.controller is not None
             pc = self.controller.placement_controller
-            self.placement_view = PlacementView(self, pc, loop,
+            self.placement_view = PlacementView(self, pc,
                                                 config, cb)
         self.placement_view.update()
         self.frame.body = self.placement_view
@@ -433,17 +435,9 @@ class PegasusGUI(WidgetWrap):
     def __repr__(self):
         return "<Ubuntu OpenStack Installer GUI Interface>"
 
-    def tasker(self, loop, config):
+    def tasker(self, config):
         """ Interface with Tasker class
 
-        :param loop: urwid.Mainloop
         :param dict config: config object
         """
-        return Tasker(self, loop, config)
-
-    def exit(self, loop=None):
-        """ Provide exit loop helper
-
-        :param loop: Just a placeholder, exit with urwid.
-        """
-        urwid.ExitMainLoop()
+        return Tasker(self, config)

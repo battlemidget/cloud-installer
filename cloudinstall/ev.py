@@ -15,7 +15,6 @@
 
 import urwid
 import sys
-from cloudinstall.state import ControllerState
 from tornado.ioloop import IOLoop
 from cloudinstall.ui.palette import STYLES
 
@@ -29,123 +28,89 @@ class EventLoop:
 
     """ Abstracts out event loop
     """
+    loop = None
+    config = None
+    error_code = 0
+    _callback_map = {}
+    _loop_thread = None
+    _thread_exit_event = None
 
-    def __init__(self, ui, config, log):
-        self.ui = ui
-        self.config = config
-        self.log = log
-        self.error_code = 0
-        self._callback_map = {}
-
-        self.loop = None
-
-        if not self.config.getopt('headless'):
-            self.loop = self._build_loop()
-            self.loop.set_alarm_in(2, self.check_thread_exit_event)
-            self._loop_thread = threading.current_thread()
-            self._thread_exit_event = threading.Event()
-
-    def register_callback(self, key, val):
-        """ Registers some additional callbacks that didn't make sense
-        to be added as part of its initial creation
-
-        TODO: Doubt this is the best way as its more of a band-aid
-        to core.py/add_charm and hotkeys in the gui.
-        """
-        self._callback_map[key] = val
-
-    def _build_loop(self):
+    @classmethod
+    def build_loop(cls, ui, config, **kwargs):
         """ Returns event loop configured with color palette """
-        additional_opts = {
-            'screen': urwid.raw_display.Screen(),
-            'unhandled_input': self.header_hotkeys,
-            'handle_mouse': True
-        }
-        additional_opts['screen'].set_terminal_properties(colors=256)
-        additional_opts['screen'].reset_default_terminal_palette()
-        evl = urwid.TornadoEventLoop(IOLoop())
-        return urwid.MainLoop(
-            self.ui, STYLES, event_loop=evl, **additional_opts)
+        cls.config = config
 
-    def header_hotkeys(self, key):
-        if not self.config.getopt('headless'):
-            if key in ['j', 'down']:
-                self.ui.focus_next()
-            if key in ['k', 'up']:
-                self.ui.focus_previous()
-            if key in ['h', 'H', '?']:
-                self.ui.show_help_info()
-            if key in ['a', 'A', 'f6']:
-                if self.config.getopt('current_state') != \
-                   ControllerState.SERVICES:
-                    return
-                self.config.setopt('current_state',
-                                   ControllerState.ADD_SERVICES.value)
-            if key in ['q', 'Q']:
-                self.exit(0)
-            if key in ['r', 'R', 'f5']:
-                self.ui.status_info_message("View was refreshed")
-                self._callback_map['refresh_display']()
-            if key in ['esc']:
-                log.debug("setting previous controller: {}".format(
-                    self.ui.controller))
-                self.ui.frame.body = self.ui.controller
+        if not cls.config.getopt('headless'):
+            additional_opts = {
+                'screen': urwid.raw_display.Screen(),
+                'handle_mouse': True
+            }
+            additional_opts['screen'].set_terminal_properties(colors=256)
+            additional_opts['screen'].reset_default_terminal_palette()
+            evl = urwid.TornadoEventLoop(IOLoop())
+            cls.loop = urwid.MainLoop(
+                ui, STYLES, event_loop=evl, **additional_opts)
 
-    def exit(self, err=0):
-        self.error_code = err
-        self.log.info("Stopping eventloop")
-        if self.config.getopt('headless'):
+    @classmethod
+    def exit(cls, err=0):
+        cls.error_code = err
+        log.info("Stopping eventloop")
+        if cls.config.getopt('headless'):
             sys.exit(err)
 
-        if threading.current_thread() == self._loop_thread:
+        if threading.current_thread() == cls._loop_thread:
             raise urwid.ExitMainLoop()
         else:
-            self._thread_exit_event.set()
+            cls._thread_exit_event.set()
             log.debug("{} exiting, deferred UI exit "
                       "to main thread.".format(
                           threading.current_thread().name))
 
-    def check_thread_exit_event(self, *args, **kwargs):
-        if self._thread_exit_event.is_set():
+    @classmethod
+    def check_thread_exit_event(cls, *args, **kwargs):
+        if cls._thread_exit_event.is_set():
             raise urwid.ExitMainLoop()
-        self.loop.set_alarm_in(2, self.check_thread_exit_event)
+        cls.loop.set_alarm_in(2, cls.check_thread_exit_event)
 
-    def close(self):
+    @classmethod
+    def close(cls):
         pass
 
-    def redraw_screen(self):
-        if not self.config.getopt('headless'):
+    @classmethod
+    def redraw_screen(cls):
+        if not cls.config.getopt('headless'):
             try:
-                self.loop.draw_screen()
+                cls.loop.draw_screen()
             except AssertionError as e:
-                self.log.exception("exception failure in redraw_screen")
+                log.exception("exception failure in redraw_screen")
                 raise e
 
-    def set_alarm_in(self, interval, cb):
-        if not self.config.getopt('headless'):
-            return self.loop.set_alarm_in(interval, cb)
+    @classmethod
+    def set_alarm_in(cls, interval, cb):
+        if not cls.config.getopt('headless'):
+            return cls.loop.set_alarm_in(interval, cb)
         return
 
-    def remove_alarm(self, handle):
-        if not self.config.getopt('headless'):
-            return self.loop.remove_alarm(handle)
+    @classmethod
+    def remove_alarm(cls, handle):
+        if not cls.config.getopt('headless'):
+            return cls.loop.remove_alarm(handle)
         return False
 
-    def run(self, cb=None):
+    @classmethod
+    def run(cls, cb=None):
         """ Run eventloop
 
         :param func cb: (optional) callback
         """
-        if not self.config.getopt('headless'):
+        if not cls.config.getopt('headless'):
             try:
-                self.loop.run()
+                cls.loop.set_alarm_in(2, cls.check_thread_exit_event)
+                cls._loop_thread = threading.current_thread()
+                cls._thread_exit_event = threading.Event()
+
+                cls.loop.run()
             except:
                 log.exception("Exception in ev.run():")
                 raise
         return
-
-    def __repr__(self):
-        if self.config.getopt('headless'):
-            return "<eventloop disabled>"
-        else:
-            return "<eventloop urwid based on tornado()>"

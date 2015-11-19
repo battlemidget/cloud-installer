@@ -27,7 +27,7 @@ from tempfile import TemporaryDirectory
 
 from cloudinstall.state import InstallState
 from cloudinstall.netutils import get_ip_set
-
+from cloudinstall.ev import EventLoop
 from cloudinstall import utils
 
 
@@ -36,12 +36,11 @@ log = logging.getLogger('cloudinstall.c.i.multi')
 
 class MultiInstall:
 
-    def __init__(self, loop, display_controller,
+    def __init__(self, display_controller,
                  config, post_tasks=None):
-        self.loop = loop
         self.config = config
         self.display_controller = display_controller
-        self.tasker = self.display_controller.tasker(loop, config)
+        self.tasker = self.display_controller.tasker(config)
         self.tempdir = TemporaryDirectory(suffix="cloud-install")
         if post_tasks:
             self.post_tasks = post_tasks
@@ -148,7 +147,7 @@ class MultiInstall:
         if self.config.getopt('install_only'):
             log.info("Done installing, stopping here per --install-only.")
             self.config.setopt('install_only', True)
-            self.loop.exit(0)
+            EventLoop.loop.exit(0)
 
         # Return control back to landscape_install if need be
         if not self.config.is_landscape():
@@ -162,8 +161,7 @@ class MultiInstall:
             log.debug("Finished MAAS step, now deploying Landscape.")
             return LandscapeInstallFinal(self,
                                          self.display_controller,
-                                         self.config,
-                                         self.loop).run()
+                                         self.config).run()
 
     def drop_privileges(self):
         if os.geteuid() != 0:
@@ -268,9 +266,8 @@ class LandscapeInstallFinal:
                   "archive/bundle.yaml")
 
     def __init__(self, multi_installer, display_controller,
-                 config, loop):
+                 config):
         self.config = config
-        self.loop = loop
         self.config.save()
         self.multi_installer = multi_installer
         self.display_controller = display_controller

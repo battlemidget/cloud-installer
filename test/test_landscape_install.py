@@ -35,7 +35,6 @@ class LandscapeInstallFinalTestCase(unittest.TestCase):
     def setUp(self):
         self.mock_multi_installer = MagicMock()
         self.mock_display_controller = MagicMock()
-        self.loop = MagicMock()
         with NamedTemporaryFile(mode='w+', encoding='utf-8') as tempf:
             # Override config file to save to
             self.conf = Config({}, tempf.name, save_backups=False)
@@ -59,8 +58,7 @@ class LandscapeInstallFinalTestCase(unittest.TestCase):
 
         lif = LandscapeInstallFinal(self.mock_multi_installer,
                                     self.mock_display_controller,
-                                    self.conf,
-                                    self.loop)
+                                    self.conf)
         self.installer = lif
 
     def test_run_configure_not_sudo_user(self, mock_utils):

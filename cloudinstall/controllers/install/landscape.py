@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-
 from .multi import (MultiInstall,
                     MultiInstallExistingMaas)
 
@@ -24,10 +23,9 @@ log = logging.getLogger('cloudinstall.c.i.landscape')
 
 class LandscapeInstall:
 
-    def __init__(self, loop, display_controller, config):
+    def __init__(self, display_controller, config):
         self.config = config
         self.display_controller = display_controller
-        self.loop = loop
         self.config.setopt('install_type', 'OpenStack Autopilot')
 
         self.landscape_tasks = ["Preparing Landscape",
@@ -38,11 +36,11 @@ class LandscapeInstall:
         """ Performs the landscape deployment with existing MAAS
         """
         if self.config.getopt('headless'):
-            MultiInstall(self.loop, self.display_controller,
+            MultiInstall(self.display_controller,
                          self.config, self.landscape_tasks).do_install()
         else:
             MultiInstallExistingMaas(
-                self.loop, self.display_controller,
+                self.display_controller,
                 self.config, post_tasks=self.landscape_tasks).run()
 
     def _save_lds_creds(self, creds):

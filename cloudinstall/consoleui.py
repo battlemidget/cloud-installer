@@ -29,9 +29,9 @@ class ConsoleUI:
     def __init__(self):
         self._missing_attrs = []
 
-    def tasker(self, loop, config):
+    def tasker(self, config):
         """ Return console tasker """
-        return TaskerConsole(self, loop, config)
+        return TaskerConsole(self, config)
 
     def status_info_message(self, msg):
         log.info(msg)

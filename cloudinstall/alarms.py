@@ -16,19 +16,20 @@
 """ Alarm monitor
 """
 
+from cloudinstall.ev import EventLoop
+
 
 class AlarmMonitor:
     alarms = {}
-    loop = None
 
     @classmethod
     def add_alarm(cls, handle, name):
         if name in cls.alarms:
-            cls.loop.remove_alarm(cls.alarms[name])
+            EventLoop.loop.remove_alarm(cls.alarms[name])
         cls.alarms[name] = handle
 
     @classmethod
     def remove_all(cls):
         for alarm in cls.alarms.values():
-            cls.loop.remove_alarm(alarm)
+            EventLoop.loop.remove_alarm(alarm)
         cls.alarms = {}

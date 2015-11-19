@@ -22,6 +22,7 @@ from os import path, getenv
 from operator import attrgetter
 
 from cloudinstall.config import OPENSTACK_RELEASE_LABELS
+from cloudinstall.ev import EventLoop
 from cloudinstall import utils
 from cloudinstall.alarms import AlarmMonitor
 from cloudinstall.state import ControllerState
@@ -59,11 +60,10 @@ class Controller:
 
     """ Controller for Juju deployments and Maas machine init """
 
-    def __init__(self, ui, config, loop):
+    def __init__(self, ui, config):
         self.ui = ui
         self.ui.controller = self
         self.config = config
-        self.loop = loop
         self.juju_state = None
         self.juju = None
         self.maas = None
@@ -78,14 +78,12 @@ class Controller:
 
     def update(self, *args, **kwargs):
         """Render UI according to current state and reset timer
-
-        PegasusGUI only.
         """
         interval = 1
 
         current_state = self.config.getopt('current_state')
         if current_state == ControllerState.PLACEMENT:
-            self.ui.render_placement_view(self.loop,
+            self.ui.render_placement_view(EventLoop.loop,
                                           self.config,
                                           self.commit_placement)
 
@@ -102,14 +100,12 @@ class Controller:
             raise Exception("Internal error, unexpected display "
                             "state '{}'".format(current_state))
 
-        self.loop.redraw_screen()
-        AlarmMonitor.add_alarm(self.loop.set_alarm_in(interval, self.update),
+        AlarmMonitor.add_alarm(EventLoop.loop.set_alarm_in(interval,
+                                                           self.update),
                                "core-controller-update")
 
     def update_node_states(self):
-        """ Updating node states
-
-        PegasusGUI only
+        """ Updating node states in the services view
         """
         if not self.juju_state:
             return
@@ -217,7 +213,7 @@ class Controller:
         self.config.setopt('current_state', ControllerState.SERVICES.value)
         self.ui.render_services_view(self.nodes, self.juju_state,
                                      self.maas_state, self.config)
-        self.loop.redraw_screen()
+        EventLoop.loop.redraw_screen()
         if self.config.getopt('headless'):
             self.begin_deployment()
         else:
@@ -581,7 +577,7 @@ class Controller:
                 # time.sleep(10)
             self.ui.status_info_message(
                 "All services deployed, relations set, and started")
-            self.loop.exit(0)
+            EventLoop.loop.exit(0)
 
         self.ui.status_info_message(
             "Services deployed, relationships still pending."
@@ -589,7 +585,7 @@ class Controller:
             " deploying additional services.")
         self.ui.render_services_view(self.nodes, self.juju_state,
                                      self.maas_state, self.config)
-        self.loop.redraw_screen()
+        EventLoop.loop.redraw_screen()
 
     def deploy_new_services(self):
         """Deploys newly added services in background thread.
@@ -598,7 +594,7 @@ class Controller:
         self.config.setopt('current_state', ControllerState.SERVICES.value)
         self.ui.render_services_view(self.nodes, self.juju_state,
                                      self.maas_state, self.config)
-        self.loop.redraw_screen()
+        EventLoop.loop.redraw_screen()
 
         self.deploy_using_placement()
         self.wait_for_deployed_services_ready()
@@ -612,7 +608,7 @@ class Controller:
                            ControllerState.SERVICES.value)
         self.ui.render_services_view(self.nodes, self.juju_state,
                                      self.maas_state, self.config)
-        self.loop.redraw_screen()
+        EventLoop.loop.redraw_screen()
 
     def start(self):
         """ Starts UI loop
@@ -625,9 +621,5 @@ class Controller:
             label = OPENSTACK_RELEASE_LABELS[rel]
             self.ui.set_openstack_rel(label)
             self.initialize()
-            self.loop.register_callback('refresh_display', self.update)
-            AlarmMonitor.add_alarm(self.loop.set_alarm_in(0, self.update),
-                                   "controller-start")
             self.config.setopt("gui_started", True)
-            self.loop.run()
-            self.loop.close()
+            EventLoop.loop.run()
