@@ -119,8 +119,7 @@ class Tasker:
         self.stopped = True
         self.write_timings()
 
-    def update_progress(self, userdata=None, *args):
-        log.debug("update progress: {} {}".format(userdata, args))
+    def update_progress(self, *args):
         self.alarm = None
         if self.stopped:
             # if stopped was set in a separate thread, return and
