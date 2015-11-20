@@ -19,7 +19,6 @@ import time
 import yaml
 
 from cloudinstall import utils
-from cloudinstall.async import AsyncPool
 from cloudinstall.ev import EventLoop
 from cloudinstall.alarms import AlarmMonitor
 from cloudinstall.config import Config
@@ -187,7 +186,6 @@ class FakeInstall:
         self.tl = ['a', 'b', 'c']
         self.tasker.register_tasks(self.tl)
         self.update_progress()
-        AsyncPool.submit(self.async_go)
 
     def async_go(self):
         for t in self.tl:

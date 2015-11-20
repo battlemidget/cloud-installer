@@ -44,6 +44,7 @@ import json
 import yaml
 import requests
 from urllib.parse import urlparse
+from cloudinstall.async import AsyncPool
 
 log = logging.getLogger('cloudinstall.utils')
 
@@ -51,29 +52,29 @@ log = logging.getLogger('cloudinstall.utils')
 blank_len = None
 
 
-def global_exchandler(type, value, tb):
-    """ helper routine capturing tracebacks and printing to log file """
-    tb_list = traceback.format_exception(type, value, tb)
-    log.debug("".join(tb_list))
+# def global_exchandler(type, value, tb):
+#     """ helper routine capturing tracebacks and printing to log file """
+#     tb_list = traceback.format_exception(type, value, tb)
+#     log.debug("".join(tb_list))
 
 
-_async_exception_callback = None
+# _async_exception_callback = None
 
 
-def register_async_exception_callback(cb):
-    global _async_exception_callback
-    _async_exception_callback = cb
+# def register_async_exception_callback(cb):
+#     global _async_exception_callback
+#     _async_exception_callback = cb
 
 
-class ExceptionLoggingThread(Thread):
+# class ExceptionLoggingThread(Thread):
 
-    def run(self):
-        try:
-            super().run()
-        except Exception as e:
-            global_exchandler(*sys.exc_info())
-            if _async_exception_callback:
-                _async_exception_callback(e)
+#     def run(self):
+#         try:
+#             super().run()
+#         except Exception as e:
+#             global_exchandler(*sys.exc_info())
+#             if _async_exception_callback:
+#                 _async_exception_callback(e)
 
 
 class UtilsException(Exception):

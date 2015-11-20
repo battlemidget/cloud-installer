@@ -58,19 +58,19 @@ class EventLoop:
         if cls.config.getopt('headless'):
             sys.exit(err)
 
-        if threading.current_thread() == cls._loop_thread:
-            raise urwid.ExitMainLoop()
-        else:
-            cls._thread_exit_event.set()
-            log.debug("{} exiting, deferred UI exit "
-                      "to main thread.".format(
-                          threading.current_thread().name))
+        # if threading.current_thread() == cls._loop_thread:
+        #     raise urwid.ExitMainLoop()
+        # else:
+        #     cls._thread_exit_event.set()
+        #     log.debug("{} exiting, deferred UI exit "
+        #               "to main thread.".format(
+        #                   threading.current_thread().name))
 
-    @classmethod
-    def check_thread_exit_event(cls, *args, **kwargs):
-        if cls._thread_exit_event.is_set():
-            raise urwid.ExitMainLoop()
-        cls.loop.set_alarm_in(2, cls.check_thread_exit_event)
+    # @classmethod
+    # def check_thread_exit_event(cls, *args, **kwargs):
+    #     if cls._thread_exit_event.is_set():
+    #         raise urwid.ExitMainLoop()
+    #     cls.loop.set_alarm_in(2, cls.check_thread_exit_event)
 
     @classmethod
     def close(cls):

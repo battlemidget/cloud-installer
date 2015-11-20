@@ -23,8 +23,6 @@ import time
 import platform
 import shutil
 from subprocess import call, check_call, check_output, STDOUT
-
-from cloudinstall.async import AsyncPool
 from cloudinstall.ev import EventLoop
 from cloudinstall import utils, netutils
 from cloudinstall.api.container import (Container,
@@ -429,7 +427,7 @@ class SingleInstall:
         if self.config.getopt('headless'):
             self.do_install()
         else:
-            AsyncPool.submit(self.do_install)
+            self.do_install()
 
     def do_install(self):
         self.display_controller.status_info_message("Building environment")
@@ -509,5 +507,5 @@ class SingleInstall:
 
         self.display_controller.status_info_message(
             "Starting cloud deployment")
-        Container.run_status(
+        return Container.run_status(
             self.container_name, " ".join(cloud_status_bin), self.config)

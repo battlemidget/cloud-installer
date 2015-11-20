@@ -45,7 +45,7 @@ from cloudinstall.placement.ui import PlacementView
 from cloudinstall.placement.ui.add_services_dialog import AddServicesDialog
 
 log = logging.getLogger('cloudinstall.gui')
-sys.excepthook = utils.global_exchandler
+# sys.excepthook = utils.global_exchandler
 
 
 class Banner(ScrollableWidgetWrap):
@@ -268,8 +268,8 @@ class PegasusGUI(WidgetWrap):
     def __init__(self, header=None, body=None, footer=None, config=None):
         self.config = config
         _check_encoding()  # Make sure terminal supports utf8
-        cb = self.show_exception_message
-        utils.register_async_exception_callback(cb)
+        # cb = self.show_exception_message
+        # utils.register_async_exception_callback(cb)
         self.header = header if header else Header()
         self.body = body if body else Banner()
         self.footer = footer if footer else StatusBar('')

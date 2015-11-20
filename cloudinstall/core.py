@@ -20,7 +20,7 @@ import sys
 from os import path, getenv
 
 from operator import attrgetter
-
+from tornado import gen
 from cloudinstall.config import OPENSTACK_RELEASE_LABELS
 from cloudinstall.ev import EventLoop
 from cloudinstall import utils
@@ -29,7 +29,6 @@ from cloudinstall.state import ControllerState
 from cloudinstall.juju import JujuState
 from cloudinstall.maas import (connect_to_maas, FakeMaasState,
                                MaasMachineStatus)
-from cloudinstall.async import AsyncPool
 from cloudinstall.charms import CharmQueue
 from cloudinstall.log import PrettyLog
 from cloudinstall.placement.controller import (PlacementController,
@@ -40,7 +39,7 @@ from macumba import Jobs as JujuJobs
 
 
 log = logging.getLogger('cloudinstall.core')
-sys.excepthook = utils.global_exchandler
+# sys.excepthook = utils.global_exchandler
 
 
 class FakeJujuState:
@@ -91,12 +90,15 @@ class Controller:
             self.ui.render_node_install_wait(message="Waiting...")
             interval = self.config.node_install_wait_interval
         elif current_state == ControllerState.ADD_SERVICES:
+            @gen.coroutine
             def submit_deploy():
-                AsyncPool.submit(self.deploy_new_services),
+                self.deploy_new_services()
             self.ui.render_add_services_dialog(
                 submit_deploy, self.cancel_add_services)
         elif current_state == ControllerState.SERVICES:
             self.update_node_states()
+        elif current_state == ControllerState.HELP:
+            self.ui.show_help_info()
         else:
             raise Exception("Internal error, unexpected display "
                             "state '{}'".format(current_state))
@@ -145,6 +147,7 @@ class Controller:
         self.juju_state = JujuState(self.juju)
         log.debug('Authenticated against juju api.')
 
+    @gen.coroutine
     def initialize(self):
         """Authenticates against juju/maas and sets up placement controller."""
         if getenv("FAKE_API_DATA"):
@@ -197,8 +200,7 @@ class Controller:
             if self.config.getopt('headless'):
                 self.begin_deployment()
             else:
-                AsyncPool.submit(self.begin_deployment)
-            return
+                self.begin_deployment()
 
         if self.config.getopt('edit_placement') or \
            not self.placement_controller.can_deploy():
@@ -208,7 +210,7 @@ class Controller:
             if self.config.getopt('headless'):
                 self.begin_deployment()
             else:
-                AsyncPool.submit(self.begin_deployment)
+                self.begin_deployment()
 
     def commit_placement(self):
         self.config.setopt('current_state', ControllerState.SERVICES.value)
@@ -218,7 +220,7 @@ class Controller:
         if self.config.getopt('headless'):
             self.begin_deployment()
         else:
-            AsyncPool.submit(self.begin_deployment)
+            self.begin_deployment()
 
     def begin_deployment(self):
         if self.config.is_multi():
@@ -564,8 +566,8 @@ class Controller:
             charm_q.watch_relations()
             charm_q.watch_post_proc()
         else:
-            AsyncPool.submit(charm_q.watch_relations)
-            AsyncPool.submit(charm_q.watch_post_proc)
+            charm_q.watch_relations()
+            charm_q.watch_post_proc()
         charm_q.is_running = True
 
         # Exit cleanly if we've finished all deploys, relations,
